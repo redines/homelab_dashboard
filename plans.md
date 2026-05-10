@@ -38,7 +38,7 @@ Added at bottom:
 - MEDIA_LIBRARY_CACHE_TTL = int(os.environ.get('MEDIA_LIBRARY_CACHE_TTL', '900'))
 - CACHES locmem backend (guarded with: if 'CACHES' not in locals())
 ---
-## Phase 2 — Backend Media Clients [ ]
+## Phase 2 — Backend Media Clients [DONE]
 File: dashboard/utils/media_client.py  (NEW)
 5 classes:
 TMDbClient
@@ -94,7 +94,7 @@ get_media_status()
   - Returns {tmdb_available, radarr_available, sonarr_available, mal_available}
   - 5-minute cache
 ---
-## Phase 3 — API Endpoints [ ]
+## Phase 3 — API Endpoints [DONE]
 Files: dashboard/views.py, dashboard/urls.py
 3 new view functions in views.py:
 media_feed(request)
@@ -114,7 +114,7 @@ media_add(request)
   path('api/media/status/', views.media_status, name='media_status'),
   path('api/media/add/',    views.media_add,    name='media_add'),
 ---
-## Phase 4 — base.html Layout [ ]
+## Phase 4 — base.html Layout [DONE]
 File: templates/base.html
 Wrap existing <main> and <footer> in a new block:
   {% block main_area %}
@@ -123,7 +123,7 @@ Wrap existing <main> and <footer> in a new block:
   {% endblock %}
 Other pages (service_detail, grafana) inherit the default and are unaffected.
 ---
-## Phase 5 — Dashboard Template [ ]
+## Phase 5 — Dashboard Template [DONE]
 File: templates/dashboard/index.html
 Override {% block main_area %} with a calc(100vh - 73px) flex container:
   <div class="flex overflow-hidden" style="height: calc(100vh - 73px);">
@@ -157,7 +157,7 @@ Card layout inside #media-feed-list:
   - 2-line clamped description
   - conditional "Add to Radarr" / "Add to Sonarr" button
 ---
-## Phase 6 — Frontend JavaScript [ ]
+## Phase 6 — Frontend JavaScript [DONE]
 File: static/js/media_feed.js  (NEW)
 Loaded via {% block extra_js %} in index.html
 Functions:

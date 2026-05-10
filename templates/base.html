@@ -23,6 +23,7 @@
         </div>
     </header>
 
+    {% block main_area %}
     <main class="py-8">
         <div class="max-w-screen-2xl mx-auto px-5">
             {% block content %}{% endblock %}
@@ -34,6 +35,7 @@
             <p class="text-text-secondary text-sm">&copy; 2025 HomeLab Dashboard | Last updated: <span id="last-updated">{{ last_updated|date:"Y-m-d H:i:s" }}</span></p>
         </div>
     </footer>
+    {% endblock %}
 
     <script src="{% static 'js/dashboard.js' %}"></script>
     {% block extra_js %}{% endblock %}

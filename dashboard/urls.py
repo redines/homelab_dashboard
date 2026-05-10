@@ -21,4 +21,9 @@ urlpatterns = [
     path('grafana/', views.grafana_panels_view, name='grafana_panels'),
     path('grafana/<int:panel_id>/', views.grafana_panel_detail, name='grafana_panel_detail'),
     path('api/grafana/panels/', views.api_grafana_panels, name='api_grafana_panels'),
+
+    # Media discovery feed
+    path('api/media/feed/',   views.media_feed,   name='media_feed'),
+    path('api/media/status/', views.media_status, name='media_status'),
+    path('api/media/add/',    views.media_add,    name='media_add'),
 ]

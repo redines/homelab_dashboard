@@ -921,3 +921,78 @@ def grafana_panel_detail(request, panel_id):
     
     return render(request, 'dashboard/grafana_panel_detail.html', context)
 
+
+# ---------------------------------------------------------------------------
+# Media Discovery Feed API
+# ---------------------------------------------------------------------------
+
+def media_feed(request):
+    """GET /api/media/feed/?type=&page="""
+    from .utils.media_client import get_media_feed, get_media_status
+    filter_type = request.GET.get('type', 'all')
+    try:
+        page = int(request.GET.get('page', 1))
+    except (ValueError, TypeError):
+        page = 1
+
+    if filter_type not in ('movies', 'tv', 'anime', 'recommended', 'all'):
+        filter_type = 'all'
+
+    result = get_media_feed(filter_type, page)
+    status = get_media_status()
+    return JsonResponse({
+        'items': result['items'],
+        'has_more': result['has_more'],
+        'status': status,
+    })
+
+
+def media_status(request):
+    """GET /api/media/status/"""
+    from .utils.media_client import get_media_status
+    return JsonResponse(get_media_status())
+
+
+@csrf_exempt
+def media_add(request):
+    """POST /api/media/add/"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+
+    from .utils.media_client import RadarrClient, SonarrClient, invalidate_radarr_cache, invalidate_sonarr_cache
+    try:
+        body = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+    media_type = body.get('media_type')
+    title = body.get('title', '')
+    year = body.get('year') or 0
+    tmdb_id = body.get('tmdb_id')
+
+    if media_type == 'movie':
+        client = RadarrClient()
+        result = client.add_movie(title, tmdb_id, year)
+        if result:
+            invalidate_radarr_cache()
+            return JsonResponse({'success': True, 'message': f'Added {title} to Radarr'})
+        return JsonResponse({'success': False, 'error': 'Failed to add to Radarr'})
+    elif media_type in ('tv', 'anime'):
+        client = SonarrClient()
+        # Try lookup to get tvdb_id
+        results = client.lookup_series(title) or []
+        tvdb_id = None
+        for s in results:
+            if s.get('tvdbId'):
+                tvdb_id = s['tvdbId']
+                break
+        if not tvdb_id:
+            return JsonResponse({'success': False, 'error': 'Could not find series in Sonarr lookup'})
+        result = client.add_series(title, year, tvdb_id)
+        if result:
+            invalidate_sonarr_cache()
+            return JsonResponse({'success': True, 'message': f'Added {title} to Sonarr'})
+        return JsonResponse({'success': False, 'error': 'Failed to add to Sonarr'})
+    else:
+        return JsonResponse({'success': False, 'error': 'Unknown media_type'}, status=400)
+
