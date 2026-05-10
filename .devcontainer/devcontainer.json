@@ -1,0 +1,46 @@
+{
+  "name": "HomeLab Dashboard",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
+    }
+  },
+  "forwardPorts": [8000],
+  "portsAttributes": {
+    "8000": {
+      "label": "Django Dev Server",
+      "onAutoForward": "notify"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.debugpy",
+        "ms-python.pylance",
+        "batisteo.vscode-django",
+        "bradlc.vscode-tailwindcss",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.terminal.activateEnvironment": false,
+        "[python]": {
+          "editor.formatOnSave": true
+        },
+        "editor.formatOnSave": true
+      }
+    }
+  },
+  "remoteEnv": {
+    "DEBUG": "True",
+    "DJANGO_SECRET_KEY": "dev-container-insecure-secret-key",
+    "ALLOWED_HOSTS": "localhost,127.0.0.1"
+  }
+}
