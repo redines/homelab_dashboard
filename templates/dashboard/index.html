@@ -119,98 +119,88 @@
 </div>
 {% endif %}
 
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12" id="services-grid">
-    {% for service in services %}
-    <div class="bg-bg-secondary border-2 {% if service.status == 'up' %}border-l-4 border-l-success border-border{% elif service.status == 'down' %}border-l-4 border-l-danger border-border{% else %}border-l-4 border-l-warning border-border{% endif %} rounded-xl p-6 cursor-pointer transition-all duration-300 flex flex-col gap-4 shadow-md hover:-translate-y-1 hover:shadow-xl hover:border-primary" 
-         data-service-id="{{ service.id }}">
-        <div class="flex justify-between items-center">
-            <div class="text-3xl">
-                {% if service.icon %}
-                    {{ service.icon }}
-                {% else %}
-                    🔧
+<!-- Services List -->
+<div class="mb-12">
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-2xl font-bold">🖥️ Services</h2>
+        <span class="text-sm text-text-secondary">{{ total_services }} service{{ total_services|pluralize }}</span>
+    </div>
+    <div class="bg-bg-secondary border border-border rounded-xl overflow-hidden shadow-md" id="services-list">
+        {% for service in services %}
+        <div class="flex items-center gap-4 px-5 py-4 border-b border-border last:border-b-0
+                    hover:bg-bg-card transition-colors cursor-pointer
+                    border-l-4
+                    {% if service.status == 'up' %}border-l-success
+                    {% elif service.status == 'down' %}border-l-danger
+                    {% else %}border-l-warning{% endif %}"
+             data-service-id="{{ service.id }}">
+
+            <!-- Icon -->
+            <div class="text-2xl w-9 shrink-0 text-center">
+                {{ service.icon|default:"🔧" }}
+            </div>
+
+            <!-- Name + meta -->
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-semibold text-text-primary truncate">{{ service.name }}</span>
+                    {% if service.api_detected %}
+                    <span class="px-2 py-0.5 rounded text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30" title="API Available">🔌 API</span>
+                    {% endif %}
+                </div>
+                <div class="flex items-center gap-4 mt-1 text-xs text-text-secondary flex-wrap">
+                    <span>{{ service.get_service_type_display }}</span>
+                    {% if service.response_time %}<span>{{ service.response_time }} ms</span>{% endif %}
+                    {% if service.last_checked %}<span>Checked {{ service.last_checked|timesince }} ago</span>{% endif %}
+                    <span class="truncate max-w-xs">{{ service.url }}</span>
+                </div>
+                {% if service.tags %}
+                <div class="flex flex-wrap gap-1 mt-1">
+                    {% for tag in service.tags.split %}
+                        {% if tag %}
+                        <span class="bg-bg text-text-secondary px-2 py-0.5 rounded text-xs">{{ tag }}</span>
+                        {% endif %}
+                    {% endfor %}
+                </div>
                 {% endif %}
             </div>
-            <div class="flex gap-2">
-                {% if service.api_detected %}
-                <span class="px-3 py-1 rounded-xl text-xs font-semibold uppercase tracking-wide bg-blue-500/20 text-blue-400 border border-blue-500/30" title="API Available">
-                    🔌 API
-                </span>
-                {% endif %}
-                <span class="px-3 py-1 rounded-xl text-xs font-semibold uppercase tracking-wide {% if service.status == 'up' %}bg-success/20 text-success{% elif service.status == 'down' %}bg-danger/20 text-danger{% else %}bg-warning/20 text-warning{% endif %}">
+
+            <!-- Status badge -->
+            <div class="shrink-0">
+                <span class="px-3 py-1 rounded-xl text-xs font-semibold uppercase tracking-wide
+                    {% if service.status == 'up' %}bg-success/20 text-success
+                    {% elif service.status == 'down' %}bg-danger/20 text-danger
+                    {% else %}bg-warning/20 text-warning{% endif %}">
                     {{ service.status|upper }}
                 </span>
             </div>
-        </div>
-        <div class="flex-1">
-            <h3 class="text-xl font-semibold mb-2 text-text-primary">{{ service.name }}</h3>
-            {% if service.description %}
-            <p class="text-sm text-text-secondary mb-4">{{ service.description }}</p>
-            {% endif %}
-            <div class="flex flex-wrap gap-4 mb-3">
-                <div class="text-xs">
-                    <span class="text-text-secondary">Type:</span>
-                    <span class="text-text-primary font-medium ml-1">{{ service.get_service_type_display }}</span>
-                </div>
-                {% if service.response_time %}
-                <div class="text-xs">
-                    <span class="text-text-secondary">Response:</span>
-                    <span class="text-text-primary font-medium ml-1">{{ service.response_time }}ms</span>
-                </div>
-                {% endif %}
-            </div>
-            {% if service.tags %}
-            <div class="flex flex-wrap gap-2 mt-3">
-                {% for tag in service.tags.split %}
-                    {% if tag %}
-                    <span class="bg-bg-card text-text-secondary px-3 py-1 rounded-xl text-xs font-medium">{{ tag }}</span>
-                    {% endif %}
-                {% endfor %}
-            </div>
-            {% endif %}
-        </div>
-        <div class="border-t border-border pt-3 flex gap-2">
-            <a href="{% url 'dashboard:service_detail' service.id %}" 
-               class="flex-1 px-3 py-2 bg-primary text-white rounded-lg hover:bg-primary/80 text-center text-sm font-medium"
-               onclick="event.stopPropagation()">
-                {% if service.api_type %}
-                    🔌 API Dashboard
-                {% else %}
-                    📊 Details
-                {% endif %}
-            </a>
-            <a href="{{ service.url }}" 
-               target="_blank"
-               class="flex-1 px-3 py-2 bg-bg border border-border rounded-lg hover:bg-bg-secondary text-center text-sm font-medium"
-               onclick="event.stopPropagation()">
-                🔗 Open Service
-            </a>
-        </div>
-        <div class="text-xs text-text-secondary space-y-1">
-            <div class="break-all">{{ service.url }}</div>
-            {% if service.last_checked %}
-            <div>Checked: {{ service.last_checked|timesince }} ago</div>
-            {% endif %}
-            <div>
-                Status changed: 
-                {% if service.status_changed_at %}
-                    {{ service.status_changed_at|date:"Y-m-d H:i:s" }}
-                {% else %}
-                    Never
-                {% endif %}
+
+            <!-- Actions -->
+            <div class="flex gap-2 shrink-0">
+                <a href="{% url 'dashboard:service_detail' service.id %}"
+                   class="px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-primary/80 text-xs font-medium"
+                   onclick="event.stopPropagation()">
+                    {% if service.api_type %}🔌 Dashboard{% else %}📊 Details{% endif %}
+                </a>
+                <a href="{{ service.url }}"
+                   target="_blank"
+                   class="px-3 py-1.5 bg-bg border border-border rounded-lg hover:bg-bg-secondary text-xs font-medium"
+                   onclick="event.stopPropagation()">
+                    🔗 Open
+                </a>
             </div>
         </div>
+        {% empty %}
+        <div class="text-center py-16">
+            <div class="text-6xl mb-4">📭</div>
+            <h2 class="text-2xl mb-2">No Services Found</h2>
+            <p class="text-text-secondary mb-4">Click "Refresh Services" to discover services from Traefik, or add one manually.</p>
+            <button onclick="document.getElementById('add-service-btn').click()" class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
+                ➕ Add Your First Service
+            </button>
+        </div>
+        {% endfor %}
     </div>
-    {% empty %}
-    <div class="col-span-full text-center py-16 bg-bg-secondary rounded-xl border-2 border-dashed border-border">
-        <div class="text-6xl mb-4">📭</div>
-        <h2 class="text-2xl mb-2">No Services Found</h2>
-        <p class="text-text-secondary mb-4">Click the "Refresh Services" button to discover services from Traefik, or add services manually.</p>
-        <button onclick="document.getElementById('add-service-btn').click()" class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
-            ➕ Add Your First Service
-        </button>
-    </div>
-    {% endfor %}
 </div>
 
 <!-- Add Service Modal -->
