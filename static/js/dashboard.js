@@ -127,37 +127,36 @@ function updateServiceCards(services) {
         const card = document.querySelector(`[data-service-id="${service.id}"]`);
         if (!card) return;
 
-        // Update status badge — use data-status-badge attribute for reliable selection
+        // Update status badge — use data-status-badge for reliable selection
         const statusBadge = card.querySelector('[data-status-badge]');
         if (statusBadge) {
-            statusBadge.className = 'px-3 py-1 rounded-xl text-xs font-semibold uppercase tracking-wide';
+            // Reset classes and re-apply for new pill design
+            statusBadge.className = 'flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider';
             if (service.status === 'up') {
-                statusBadge.classList.add('bg-success/20', 'text-success');
+                statusBadge.classList.add('bg-success/15', 'text-success', 'border', 'border-success/30');
             } else if (service.status === 'down') {
-                statusBadge.classList.add('bg-danger/20', 'text-danger');
+                statusBadge.classList.add('bg-danger/15', 'text-danger', 'border', 'border-danger/30');
             } else {
-                statusBadge.classList.add('bg-warning/20', 'text-warning');
+                statusBadge.classList.add('bg-warning/15', 'text-warning', 'border', 'border-warning/30');
             }
-            statusBadge.textContent = service.status.toUpperCase();
-        }
-        
-        // Update card border color
-        card.className = card.className.replace(/border-l-\w+/g, '');
-        if (service.status === 'up') {
-            card.classList.add('border-l-success');
-        } else if (service.status === 'down') {
-            card.classList.add('border-l-danger');
-        } else {
-            card.classList.add('border-l-warning');
-        }
-        
-        // Update response time if available
-        if (service.response_time) {
-            const responseTimeEl = card.querySelector('.meta-item:last-child .meta-value');
-            if (responseTimeEl) {
-                responseTimeEl.textContent = `${service.response_time}ms`;
+            // Update the dot indicator inside the badge
+            const dot = statusBadge.querySelector('span');
+            if (dot) {
+                dot.className = 'w-1.5 h-1.5 rounded-full';
+                if (service.status === 'up') dot.classList.add('bg-success');
+                else if (service.status === 'down') dot.classList.add('bg-danger');
+                else dot.classList.add('bg-warning');
             }
+            // Update text node (last text node in badge)
+            const textNode = Array.from(statusBadge.childNodes).find(n => n.nodeType === 3 && n.textContent.trim());
+            if (textNode) textNode.textContent = ' ' + service.status.toUpperCase() + '\n              ';
         }
+
+        // Update left border colour on the row
+        card.classList.remove('border-l-success', 'border-l-danger', 'border-l-warning');
+        if (service.status === 'up') card.classList.add('border-l-success');
+        else if (service.status === 'down') card.classList.add('border-l-danger');
+        else card.classList.add('border-l-warning');
     });
 }
 
@@ -257,25 +256,23 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Trigger a real health check on page load, then poll for updated results
-    (async () => {
-        try {
-            await fetch('/api/services/refresh/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
-            });
-        } catch (e) { /* silent */ }
-    })();
-
-    // Poll for updated statuses every 5 seconds for the first 30 seconds
+    // Auto-fetch updated data after page load (wait 2 seconds for health checks to complete)
+    setTimeout(async () => {
+        await fetchServicesData();
+    }, 2000);
+    
+    // Poll for updates every 10 seconds for the first minute after page load
     let pollCount = 0;
     const pollInterval = setInterval(async () => {
         await fetchServicesData();
         pollCount++;
+        
+        // Stop polling after 6 iterations (60 seconds)
         if (pollCount >= 6) {
             clearInterval(pollInterval);
+            console.log('Initial polling complete');
         }
-    }, 5000);
+    }, 10000);
     
     // Start auto-refresh (every 5 minutes)
     // Uncomment to enable auto-refresh
