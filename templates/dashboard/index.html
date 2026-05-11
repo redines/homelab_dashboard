@@ -34,13 +34,6 @@
   <!-- Main content -->
   <main class="flex-1 overflow-y-auto py-8">
     <div class="max-w-screen-2xl mx-auto px-5">
-      {% block content %}{% endblock %}
-    </div>
-  </main>
-</div>
-{% endblock %}
-
-{% block content %}
 <div class="my-8">
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div class="bg-bg-secondary border border-border rounded-xl p-6 flex items-center gap-4 shadow-md transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-xl">
@@ -137,7 +130,7 @@
                     🔌 API
                 </span>
                 {% endif %}
-                <span class="px-3 py-1 rounded-xl text-xs font-semibold uppercase tracking-wide {% if service.status == 'up' %}bg-success/20 text-success{% elif service.status == 'down' %}bg-danger/20 text-danger{% else %}bg-warning/20 text-warning{% endif %}">
+                <span data-status-badge class="px-3 py-1 rounded-xl text-xs font-semibold uppercase tracking-wide {% if service.status == 'up' %}bg-success/20 text-success{% elif service.status == 'down' %}bg-danger/20 text-danger{% else %}bg-warning/20 text-warning{% endif %}">
                     {{ service.status|upper }}
                 </span>
             </div>
@@ -304,6 +297,9 @@
         <div class="w-12 h-12 border-4 border-border border-t-primary rounded-full animate-spin-slow mx-auto mb-4"></div>
         <p>Refreshing services...</p>
     </div>
+</div>
+    </div>
+  </main>
 </div>
 {% endblock %}
 

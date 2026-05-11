@@ -126,20 +126,17 @@ function updateServiceCards(services) {
     services.forEach(service => {
         const card = document.querySelector(`[data-service-id="${service.id}"]`);
         if (!card) return;
-        
-        // Update status badge
-        const statusBadge = card.querySelector('span[class*="status-"]');
+
+        // Update status badge — use data-status-badge attribute for reliable selection
+        const statusBadge = card.querySelector('[data-status-badge]');
         if (statusBadge) {
-            // Remove old status classes
-            statusBadge.className = statusBadge.className.replace(/bg-\w+\/20/g, '').replace(/text-\w+/g, '');
-            
-            // Add new status classes
+            statusBadge.className = 'px-3 py-1 rounded-xl text-xs font-semibold uppercase tracking-wide';
             if (service.status === 'up') {
-                statusBadge.className = 'px-3 py-1 rounded-xl text-xs font-semibold uppercase tracking-wide bg-success/20 text-success';
+                statusBadge.classList.add('bg-success/20', 'text-success');
             } else if (service.status === 'down') {
-                statusBadge.className = 'px-3 py-1 rounded-xl text-xs font-semibold uppercase tracking-wide bg-danger/20 text-danger';
+                statusBadge.classList.add('bg-danger/20', 'text-danger');
             } else {
-                statusBadge.className = 'px-3 py-1 rounded-xl text-xs font-semibold uppercase tracking-wide bg-warning/20 text-warning';
+                statusBadge.classList.add('bg-warning/20', 'text-warning');
             }
             statusBadge.textContent = service.status.toUpperCase();
         }
@@ -260,23 +257,25 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Auto-fetch updated data after page load (wait 2 seconds for health checks to complete)
-    setTimeout(async () => {
-        await fetchServicesData();
-    }, 2000);
-    
-    // Poll for updates every 10 seconds for the first minute after page load
+    // Trigger a real health check on page load, then poll for updated results
+    (async () => {
+        try {
+            await fetch('/api/services/refresh/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+            });
+        } catch (e) { /* silent */ }
+    })();
+
+    // Poll for updated statuses every 5 seconds for the first 30 seconds
     let pollCount = 0;
     const pollInterval = setInterval(async () => {
         await fetchServicesData();
         pollCount++;
-        
-        // Stop polling after 6 iterations (60 seconds)
         if (pollCount >= 6) {
             clearInterval(pollInterval);
-            console.log('Initial polling complete');
         }
-    }, 10000);
+    }, 5000);
     
     // Start auto-refresh (every 5 minutes)
     // Uncomment to enable auto-refresh
