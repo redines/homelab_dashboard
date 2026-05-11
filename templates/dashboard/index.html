@@ -112,6 +112,29 @@
 </div>
 {% endif %}
 
+<!-- Torrent Queue Cleanup -->
+<div id="torrent-cleanup-section" class="mb-8 hidden">
+    <div class="bg-bg-secondary border border-border rounded-xl p-5 shadow-md">
+        <div class="flex items-center justify-between mb-3">
+            <div>
+                <h2 class="text-lg font-bold">🧹 Torrent Queue Cleanup</h2>
+                <p class="text-xs text-text-secondary mt-0.5">Removes completed &amp; imported torrents from qBittorrent and deletes their source files.</p>
+            </div>
+            <div class="flex gap-2">
+                <button id="cleanup-dry-run-btn"
+                        class="px-4 py-2 border border-border rounded-lg hover:bg-bg-card text-sm font-medium transition-colors">
+                    🔍 Dry Run
+                </button>
+                <button id="cleanup-run-btn"
+                        class="px-4 py-2 bg-danger/80 hover:bg-danger text-white rounded-lg text-sm font-medium transition-colors">
+                    🗑 Run Cleanup
+                </button>
+            </div>
+        </div>
+        <div id="cleanup-result" class="hidden mt-3 p-3 bg-bg rounded-lg text-xs font-mono space-y-0.5 max-h-48 overflow-y-auto"></div>
+    </div>
+</div>
+
 <!-- Services List -->
 <div class="mb-12">
     <div class="flex justify-between items-center mb-4">

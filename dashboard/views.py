@@ -981,6 +981,99 @@ def qbittorrent_stats(request, service_id):
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
+# ---------------------------------------------------------------------------
+# Torrent queue cleanup
+# ---------------------------------------------------------------------------
+
+@require_http_methods(["GET"])
+def torrent_cleanup_status(request):
+    """
+    GET /api/torrent-cleanup/status/
+    Returns whether the cleanup feature is available (i.e. qBittorrent + at
+    least one *arr service are configured with API credentials).
+    """
+    from .models import Service
+
+    qb_service = Service.objects.filter(api_type='qbittorrent', api_detected=True).first()
+    sonarr_service = Service.objects.filter(api_type='sonarr', api_detected=True).first()
+    radarr_service = Service.objects.filter(api_type='radarr', api_detected=True).first()
+
+    def _has_creds(svc):
+        if not svc:
+            return False
+        return bool((svc.api_username and svc.api_password) or svc.api_key)
+
+    available = bool(
+        _has_creds(qb_service)
+        and (_has_creds(sonarr_service) or _has_creds(radarr_service))
+    )
+
+    return JsonResponse({
+        'available': available,
+        'qbittorrent': bool(_has_creds(qb_service)),
+        'sonarr': bool(_has_creds(sonarr_service)),
+        'radarr': bool(_has_creds(radarr_service)),
+    })
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def torrent_cleanup_run(request):
+    """
+    POST /api/torrent-cleanup/run/
+    Body (JSON, optional): { "dry_run": true }
+    Runs the cleanup and returns a summary.
+    """
+    from .utils.torrent_cleanup import run_cleanup
+
+    try:
+        body = json.loads(request.body) if request.body else {}
+    except Exception:
+        body = {}
+
+    dry_run = bool(body.get('dry_run', False))
+
+    # Resolve services
+    qb = Service.objects.filter(api_type='qbittorrent', api_detected=True).first()
+    sonarr = Service.objects.filter(api_type='sonarr', api_detected=True).first()
+    radarr = Service.objects.filter(api_type='radarr', api_detected=True).first()
+
+    def _creds(svc):
+        if not svc:
+            return {}
+        return {
+            'url': svc.api_url,
+            'key': svc.api_key or '',
+            'username': svc.api_username or '',
+            'password': svc.api_password or '',
+        }
+
+    if not qb or not qb.api_url:
+        return JsonResponse({'success': False, 'error': 'qBittorrent service not configured'}, status=400)
+    if not sonarr and not radarr:
+        return JsonResponse({'success': False, 'error': 'Neither Sonarr nor Radarr is configured'}, status=400)
+
+    qb_creds = _creds(qb)
+    sonarr_creds = _creds(sonarr)
+    radarr_creds = _creds(radarr)
+
+    try:
+        result = run_cleanup(
+            qb_url=qb_creds['url'],
+            qb_username=qb_creds['username'],
+            qb_password=qb_creds['password'],
+            radarr_url=radarr_creds.get('url'),
+            radarr_key=radarr_creds.get('key'),
+            sonarr_url=sonarr_creds.get('url'),
+            sonarr_key=sonarr_creds.get('key'),
+            dry_run=dry_run,
+        )
+        return JsonResponse({'success': True, **result})
+    except Exception as e:
+        logger.error(f"Torrent cleanup failed: {e}", exc_info=True)
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
 def media_feed(request):
     """GET /api/media/feed/?type=&page="""
     from .utils.media_client import get_media_feed, get_media_status

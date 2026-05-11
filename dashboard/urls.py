@@ -24,6 +24,10 @@ urlpatterns = [
 
     path('api/services/<int:service_id>/qb-stats/', views.qbittorrent_stats, name='qbittorrent_stats'),
 
+    # Torrent queue cleanup
+    path('api/torrent-cleanup/status/', views.torrent_cleanup_status, name='torrent_cleanup_status'),
+    path('api/torrent-cleanup/run/',    views.torrent_cleanup_run,    name='torrent_cleanup_run'),
+
     # Media discovery feed
     path('api/media/feed/',   views.media_feed,   name='media_feed'),
     path('api/media/status/', views.media_status, name='media_status'),
