@@ -22,6 +22,8 @@ urlpatterns = [
     path('grafana/<int:panel_id>/', views.grafana_panel_detail, name='grafana_panel_detail'),
     path('api/grafana/panels/', views.api_grafana_panels, name='api_grafana_panels'),
 
+    path('api/services/<int:service_id>/qb-stats/', views.qbittorrent_stats, name='qbittorrent_stats'),
+
     # Media discovery feed
     path('api/media/feed/',   views.media_feed,   name='media_feed'),
     path('api/media/status/', views.media_status, name='media_status'),

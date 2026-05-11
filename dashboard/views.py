@@ -926,6 +926,61 @@ def grafana_panel_detail(request, panel_id):
 # Media Discovery Feed API
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# qBittorrent Stats API
+# ---------------------------------------------------------------------------
+
+@require_http_methods(["GET"])
+def qbittorrent_stats(request, service_id):
+    """GET /api/services/<id>/qb-stats/ — return torrent count stats."""
+    service = get_object_or_404(Service, id=service_id)
+
+    if service.api_type != 'qbittorrent' or not service.api_url:
+        return JsonResponse({'success': False, 'error': 'Not a qBittorrent service or API not configured'}, status=400)
+
+    has_auth = bool(service.api_username and service.api_password) or bool(service.api_key)
+    if not has_auth:
+        return JsonResponse({'success': False, 'error': 'No API credentials configured'}, status=400)
+
+    try:
+        client_kwargs = {'base_url': service.api_url}
+        if service.api_username and service.api_password:
+            client_kwargs['username'] = service.api_username
+            client_kwargs['password'] = service.api_password
+        elif service.api_key:
+            client_kwargs['api_key'] = service.api_key
+
+        client = GenericAPIClient(**client_kwargs)
+        torrents = client.request('GET', '/api/v2/torrents/info')
+
+        if not isinstance(torrents, list):
+            return JsonResponse({'success': False, 'error': 'Unexpected response from qBittorrent'}, status=502)
+
+        stats = {'downloading': 0, 'uploading': 0, 'seeding': 0, 'completed': 0, 'total': len(torrents)}
+        for t in torrents:
+            state = (t.get('state') or '').lower()
+            if state in ('downloading', 'stalledDL', 'forcedDL', 'metaDL', 'checkingDL', 'allocating'):
+                stats['downloading'] += 1
+            elif state in ('uploading', 'forcedUP'):
+                stats['uploading'] += 1
+            elif state in ('stalledup',):
+                stats['seeding'] += 1
+            elif state in ('pausedup', 'checkingup'):
+                stats['seeding'] += 1
+
+        # Count completed: progress == 1.0
+        stats['completed'] = sum(1 for t in torrents if t.get('progress', 0) >= 1.0)
+        # seeding = completed - uploading (still seeding)
+        stats['seeding'] = sum(1 for t in torrents
+                               if t.get('progress', 0) >= 1.0
+                               and (t.get('state') or '').lower() not in ('pausedup',))
+
+        return JsonResponse({'success': True, 'stats': stats})
+    except Exception as e:
+        logger.error(f"qBittorrent stats error for service {service_id}: {e}")
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
 def media_feed(request):
     """GET /api/media/feed/?type=&page="""
     from .utils.media_client import get_media_feed, get_media_status

@@ -147,6 +147,11 @@
                     {% if service.last_checked %}<span>Checked {{ service.last_checked|timesince }} ago</span>{% endif %}
                     <span class="truncate max-w-xs">{{ service.url }}</span>
                 </div>
+                {% if service.api_type == 'qbittorrent' and service.api_detected %}
+                <div class="flex items-center gap-3 mt-1.5 text-xs flex-wrap" id="qb-stats-{{ service.id }}">
+                    <span class="text-text-secondary">&#8203;</span>
+                </div>
+                {% endif %}
                 {% if service.tags %}
                 <div class="flex flex-wrap gap-1 mt-1">
                     {% for tag in service.tags.split %}
@@ -295,4 +300,5 @@
 
 {% block extra_js %}
 <script src="{% static 'js/media_feed.js' %}"></script>
+<script src="{% static 'js/service_list.js' %}"></script>
 {% endblock %}
