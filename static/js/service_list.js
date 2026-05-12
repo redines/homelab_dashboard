@@ -55,10 +55,14 @@
 
   function init() {
     // Find all qB stats placeholders and fetch stats for each
-    document.querySelectorAll('[id^="qb-stats-"]').forEach(function (el) {
-      const serviceId = el.id.replace('qb-stats-', '');
-      loadQbStats(serviceId);
-    });
+    setTimeout(function () {
+      document.querySelectorAll('[id^="qb-stats-"]').forEach(function (el, index) {
+        const serviceId = el.id.replace('qb-stats-', '');
+        setTimeout(function () {
+          loadQbStats(serviceId);
+        }, index * 750);
+      });
+    }, 3000);
   }
 
   if (document.readyState === 'loading') {

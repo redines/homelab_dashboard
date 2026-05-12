@@ -18,6 +18,7 @@ function getCookie(name) {
 
 const csrftoken = getCookie('csrftoken');
 const SERVICE_HEALTH_POLL_SECONDS = 30;
+const INITIAL_SERVICE_HEALTH_DELAY_SECONDS = 10;
 
 const STATUS_STYLES = {
     up: {
@@ -149,7 +150,7 @@ function startServiceHealthPolling(intervalSeconds = SERVICE_HEALTH_POLL_SECONDS
         clearInterval(healthCheckInterval);
     }
 
-    checkServicesHealth();
+    setTimeout(checkServicesHealth, INITIAL_SERVICE_HEALTH_DELAY_SECONDS * 1000);
     healthCheckInterval = setInterval(checkServicesHealth, intervalSeconds * 1000);
 }
 
@@ -329,7 +330,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Auto-fetch updated data after page load (wait 2 seconds for health checks to complete)
+    // Refresh stored data shortly after load without triggering health checks.
     setTimeout(async () => {
         await fetchServicesData();
     }, 2000);

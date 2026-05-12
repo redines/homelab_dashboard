@@ -17,12 +17,21 @@
   let currentPage = 1;
   let mediaStatus = {};
   let isLoading = false;
+  let hasLoadedInitialFeed = false;
 
   // -------------------------------------------------------------------------
   // Init
   // -------------------------------------------------------------------------
 
   async function initMediaFeed() {
+    renderTabs();
+    restoreSidebarState();
+    setupLoadMore();
+    setupToggle();
+
+    const sidebarCollapsed = localStorage.getItem('mediaSidebarCollapsed') === 'true';
+    if (sidebarCollapsed) return;
+
     try {
       const res = await fetch('/api/media/status/');
       mediaStatus = await res.json();
@@ -31,9 +40,12 @@
     }
 
     renderTabs();
-    restoreSidebarState();
-    setupLoadMore();
-    setupToggle();
+    setTimeout(loadInitialFeed, 500);
+  }
+
+  async function loadInitialFeed() {
+    if (hasLoadedInitialFeed) return;
+    hasLoadedInitialFeed = true;
     await loadMediaFeed('all', 1, false);
   }
 
@@ -263,6 +275,7 @@
       sidebar.classList.add('w-80');
       if (arrow) arrow.style.transform = '';
       localStorage.setItem('mediaSidebarCollapsed', 'false');
+      loadInitialFeed();
     } else {
       sidebar.classList.remove('w-80');
       sidebar.classList.add('w-0', 'overflow-hidden');
