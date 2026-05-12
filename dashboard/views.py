@@ -3,15 +3,45 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib import messages
+from django.db import close_old_connections
 from .models import Service, HealthCheck, GrafanaPanel
 from .utils.traefik_service import sync_traefik_services
 from .utils.generic_api_client import GenericAPIClient
 from django.utils import timezone
 import logging
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 
 logger = logging.getLogger(__name__)
+
+
+def serialize_service(service):
+    """Return the JSON shape used by service list endpoints."""
+    return {
+        'id': service.id,
+        'name': service.name,
+        'url': service.url,
+        'status': service.status,
+        'service_type': service.service_type,
+        'provider': service.provider,
+        'description': service.description,
+        'icon': service.icon,
+        'tags': service.tags.split(',') if service.tags else [],
+        'response_time': service.response_time,
+        'last_checked': service.last_checked.isoformat() if service.last_checked else None,
+        'uptime_percentage': service.uptime_percentage,
+    }
+
+
+def run_service_health_check(service_id):
+    close_old_connections()
+    try:
+        service = Service.objects.get(id=service_id)
+        service.check_health()
+        return service.id
+    finally:
+        close_old_connections()
 
 
 def check_all_services_health():
@@ -52,25 +82,38 @@ def dashboard(request):
 def api_services(request):
     """API endpoint to get all services as JSON."""
     services = Service.objects.all().order_by('name')
-    
-    services_data = []
-    for service in services:
-        services_data.append({
-            'id': service.id,
-            'name': service.name,
-            'url': service.url,
-            'status': service.status,
-            'service_type': service.service_type,
-            'provider': service.provider,
-            'description': service.description,
-            'icon': service.icon,
-            'tags': service.tags.split(',') if service.tags else [],
-            'response_time': service.response_time,
-            'last_checked': service.last_checked.isoformat() if service.last_checked else None,
-            'uptime_percentage': service.uptime_percentage,
-        })
+    services_data = [serialize_service(service) for service in services]
     
     return JsonResponse({
+        'services': services_data,
+        'total': len(services_data),
+        'timestamp': timezone.now().isoformat(),
+    })
+
+
+@require_http_methods(["POST"])
+def check_services_health(request):
+    """Check health for all services without syncing Traefik or reloading the page."""
+    service_ids = list(Service.objects.values_list('id', flat=True))
+    checked_count = 0
+
+    # Run checks concurrently so one slow/down service does not delay every row.
+    max_workers = min(8, len(service_ids)) or 1
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(run_service_health_check, service_id) for service_id in service_ids]
+        for future in as_completed(futures):
+            try:
+                future.result()
+                checked_count += 1
+            except Exception as e:
+                logger.error(f"Error checking service health: {e}")
+
+    services = Service.objects.all().order_by('name')
+    services_data = [serialize_service(service) for service in services]
+
+    return JsonResponse({
+        'success': True,
+        'health_checks': checked_count,
         'services': services_data,
         'total': len(services_data),
         'timestamp': timezone.now().isoformat(),
@@ -1050,4 +1093,3 @@ def media_add(request):
         return JsonResponse({'success': False, 'error': 'Failed to add to Sonarr'})
     else:
         return JsonResponse({'success': False, 'error': 'Unknown media_type'}, status=400)
-

@@ -17,6 +17,29 @@ function getCookie(name) {
 }
 
 const csrftoken = getCookie('csrftoken');
+const SERVICE_HEALTH_POLL_SECONDS = 30;
+
+const STATUS_STYLES = {
+    up: {
+        row: 'border-l-success',
+        badge: 'bg-success/15 text-success border border-success/30',
+        dot: 'bg-success',
+    },
+    down: {
+        row: 'border-l-danger',
+        badge: 'bg-danger/15 text-danger border border-danger/30',
+        dot: 'bg-danger',
+    },
+    unknown: {
+        row: 'border-l-warning',
+        badge: 'bg-warning/15 text-warning border border-warning/30',
+        dot: 'bg-warning',
+    },
+};
+
+function getRefreshButtons() {
+    return Array.from(document.querySelectorAll('#refresh-btn, #refresh-services-btn'));
+}
 
 // Open service in new tab
 function openService(url) {
@@ -26,12 +49,14 @@ function openService(url) {
 // Refresh services
 async function refreshServices() {
     const loadingOverlay = document.getElementById('loading-overlay');
-    const refreshBtn = document.getElementById('refresh-btn');
+    const refreshButtons = getRefreshButtons();
     
     try {
         // Show loading
-        loadingOverlay.style.display = 'flex';
-        refreshBtn.disabled = true;
+        if (loadingOverlay) loadingOverlay.style.display = 'flex';
+        refreshButtons.forEach(button => {
+            button.disabled = true;
+        });
         
         // Call refresh API
         const response = await fetch('/api/services/refresh/', {
@@ -63,13 +88,17 @@ async function refreshServices() {
         console.error('Error refreshing services:', error);
         alert('Failed to refresh services. Please try again.');
     } finally {
-        loadingOverlay.style.display = 'none';
-        refreshBtn.disabled = false;
+        if (loadingOverlay) loadingOverlay.style.display = 'none';
+        refreshButtons.forEach(button => {
+            button.disabled = false;
+        });
     }
 }
 
 // Auto-refresh services periodically
 let autoRefreshInterval = null;
+let healthCheckInterval = null;
+let healthCheckInFlight = false;
 
 function startAutoRefresh(intervalSeconds = 300) {
     // Clear existing interval
@@ -82,6 +111,46 @@ function startAutoRefresh(intervalSeconds = 300) {
         console.log('Auto-refreshing services...');
         await fetchServicesData();
     }, intervalSeconds * 1000);
+}
+
+// Check live health without Traefik sync or page reload
+async function checkServicesHealth() {
+    if (healthCheckInFlight) return;
+    healthCheckInFlight = true;
+
+    try {
+        const response = await fetch('/api/services/health/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken,
+            },
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            updateStats(data);
+            updateServiceCards(data.services);
+
+            const lastUpdated = document.getElementById('last-updated');
+            if (lastUpdated) {
+                lastUpdated.textContent = new Date(data.timestamp).toLocaleString();
+            }
+        }
+    } catch (error) {
+        console.error('Error checking services health:', error);
+    } finally {
+        healthCheckInFlight = false;
+    }
+}
+
+function startServiceHealthPolling(intervalSeconds = SERVICE_HEALTH_POLL_SECONDS) {
+    if (healthCheckInterval) {
+        clearInterval(healthCheckInterval);
+    }
+
+    checkServicesHealth();
+    healthCheckInterval = setInterval(checkServicesHealth, intervalSeconds * 1000);
 }
 
 // Fetch services data without page reload
@@ -126,39 +195,40 @@ function updateServiceCards(services) {
     services.forEach(service => {
         const card = document.querySelector(`[data-service-id="${service.id}"]`);
         if (!card) return;
+        const status = STATUS_STYLES[service.status] ? service.status : 'unknown';
+        const styles = STATUS_STYLES[status];
         
         // Update status badge
-        const statusBadge = card.querySelector('span[class*="status-"]');
+        const statusBadge = card.querySelector('[data-status-badge]');
         if (statusBadge) {
-            // Remove old status classes
-            statusBadge.className = statusBadge.className.replace(/bg-\w+\/20/g, '').replace(/text-\w+/g, '');
-            
-            // Add new status classes
-            if (service.status === 'up') {
-                statusBadge.className = 'px-3 py-1 rounded-xl text-xs font-semibold uppercase tracking-wide bg-success/20 text-success';
-            } else if (service.status === 'down') {
-                statusBadge.className = 'px-3 py-1 rounded-xl text-xs font-semibold uppercase tracking-wide bg-danger/20 text-danger';
-            } else {
-                statusBadge.className = 'px-3 py-1 rounded-xl text-xs font-semibold uppercase tracking-wide bg-warning/20 text-warning';
+            statusBadge.className = `flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${styles.badge}`;
+
+            const statusDot = statusBadge.querySelector('[data-status-dot]');
+            if (statusDot) {
+                statusDot.className = `w-1.5 h-1.5 rounded-full ${styles.dot}`;
             }
-            statusBadge.textContent = service.status.toUpperCase();
+
+            const statusText = document.createTextNode(status.toUpperCase());
+            Array.from(statusBadge.childNodes).forEach(node => {
+                if (node.nodeType === Node.TEXT_NODE) node.remove();
+            });
+            statusBadge.appendChild(statusText);
         }
         
-        // Update card border color
-        card.className = card.className.replace(/border-l-\w+/g, '');
-        if (service.status === 'up') {
-            card.classList.add('border-l-success');
-        } else if (service.status === 'down') {
-            card.classList.add('border-l-danger');
-        } else {
-            card.classList.add('border-l-warning');
-        }
+        // Update row border color
+        card.classList.remove('border-l-success', 'border-l-danger', 'border-l-warning');
+        card.classList.add(styles.row);
         
         // Update response time if available
-        if (service.response_time) {
-            const responseTimeEl = card.querySelector('.meta-item:last-child .meta-value');
-            if (responseTimeEl) {
-                responseTimeEl.textContent = `${service.response_time}ms`;
+        const responseTimeEl = card.querySelector('[data-response-time]');
+        if (responseTimeEl) {
+            const responseTimeValue = responseTimeEl.querySelector('span');
+            if (service.response_time) {
+                if (responseTimeValue) responseTimeValue.textContent = service.response_time;
+                responseTimeEl.classList.remove('hidden');
+            } else {
+                if (responseTimeValue) responseTimeValue.textContent = '';
+                responseTimeEl.classList.add('hidden');
             }
         }
     });
@@ -167,10 +237,9 @@ function updateServiceCards(services) {
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
     // Attach refresh button event
-    const refreshBtn = document.getElementById('refresh-btn');
-    if (refreshBtn) {
-        refreshBtn.addEventListener('click', refreshServices);
-    }
+    getRefreshButtons().forEach(button => {
+        button.addEventListener('click', refreshServices);
+    });
     
     // Add Service Modal
     const addServiceBtn = document.getElementById('add-service-btn');
@@ -264,19 +333,14 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(async () => {
         await fetchServicesData();
     }, 2000);
-    
-    // Poll for updates every 10 seconds for the first minute after page load
-    let pollCount = 0;
-    const pollInterval = setInterval(async () => {
-        await fetchServicesData();
-        pollCount++;
-        
-        // Stop polling after 6 iterations (60 seconds)
-        if (pollCount >= 6) {
-            clearInterval(pollInterval);
-            console.log('Initial polling complete');
+
+    startServiceHealthPolling();
+
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            checkServicesHealth();
         }
-    }, 10000);
+    });
     
     // Start auto-refresh (every 5 minutes)
     // Uncomment to enable auto-refresh

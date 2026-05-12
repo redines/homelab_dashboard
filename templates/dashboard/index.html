@@ -143,7 +143,9 @@
                 </div>
                 <div class="flex items-center gap-4 mt-1 text-xs text-text-secondary flex-wrap">
                     <span>{{ service.get_service_type_display }}</span>
-                    {% if service.response_time %}<span>{{ service.response_time }} ms</span>{% endif %}
+                    <span class="{% if not service.response_time %}hidden{% endif %}" data-response-time>
+                        <span>{% if service.response_time %}{{ service.response_time }}{% endif %}</span> ms
+                    </span>
                     {% if service.last_checked %}<span>Checked {{ service.last_checked|timesince }} ago</span>{% endif %}
                     <span class="truncate max-w-xs">{{ service.url }}</span>
                 </div>
@@ -165,10 +167,16 @@
 
             <!-- Status badge -->
             <div class="shrink-0">
-                <span class="px-3 py-1 rounded-xl text-xs font-semibold uppercase tracking-wide
-                    {% if service.status == 'up' %}bg-success/20 text-success
-                    {% elif service.status == 'down' %}bg-danger/20 text-danger
-                    {% else %}bg-warning/20 text-warning{% endif %}">
+                <span data-status-badge
+                      class="flex items-center gap-1 px-3 py-1 rounded-xl text-xs font-semibold uppercase tracking-wide
+                    {% if service.status == 'up' %}bg-success/20 text-success border border-success/30
+                    {% elif service.status == 'down' %}bg-danger/20 text-danger border border-danger/30
+                    {% else %}bg-warning/20 text-warning border border-warning/30{% endif %}">
+                    <span data-status-dot
+                          class="w-1.5 h-1.5 rounded-full
+                    {% if service.status == 'up' %}bg-success
+                    {% elif service.status == 'down' %}bg-danger
+                    {% else %}bg-warning{% endif %}"></span>
                     {{ service.status|upper }}
                 </span>
             </div>

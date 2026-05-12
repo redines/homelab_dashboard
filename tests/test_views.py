@@ -165,6 +165,22 @@ class TestServiceAPIEndpoints:
         data = json.loads(response.content)
         assert data['success'] is False
 
+    @patch('dashboard.views.run_service_health_check')
+    def test_check_services_health_bulk(self, mock_health_check, api_client, sample_services):
+        """Test checking all services health without Traefik sync."""
+        mock_health_check.return_value = None
+
+        response = api_client.post('/api/services/health/')
+
+        assert response.status_code == 200
+        data = json.loads(response.content)
+
+        assert data['success'] is True
+        assert data['health_checks'] == len(sample_services)
+        assert data['total'] == len(sample_services)
+        assert len(data['services']) == len(sample_services)
+        assert mock_health_check.call_count == len(sample_services)
+
 
 @pytest.mark.django_db
 @pytest.mark.unit
