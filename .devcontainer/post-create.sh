@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+echo "==> Configuring SSH known hosts..."
+mkdir -p ~/.ssh
+chmod 700 ~/.ssh
+touch ~/.ssh/known_hosts
+if ! ssh-keygen -F "[192.168.50.210]:2222" >/dev/null; then
+  ssh-keyscan -p 2222 192.168.50.210 >> ~/.ssh/known_hosts \
+    || echo "Warning: could not add 192.168.50.210:2222 to SSH known_hosts"
+fi
+chmod 600 ~/.ssh/known_hosts
+
 echo "==> Installing Node dependencies..."
 npm install
 

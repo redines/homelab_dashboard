@@ -9,6 +9,9 @@
       "version": "lts"
     }
   },
+  "mounts": [
+    "source=${localEnv:HOME}/.ssh/devcontainer-agent.sock,target=/tmp/ssh-agent,type=bind"
+  ],
   "forwardPorts": [8000],
   "portsAttributes": {
     "8000": {
@@ -16,6 +19,7 @@
       "onAutoForward": "notify"
     }
   },
+  "initializeCommand": "bash .devcontainer/ensure-ssh-agent.sh",
   "postCreateCommand": "bash .devcontainer/post-create.sh",
   "customizations": {
     "vscode": {
@@ -41,6 +45,7 @@
   "remoteEnv": {
     "DEBUG": "True",
     "DJANGO_SECRET_KEY": "dev-container-insecure-secret-key",
-    "ALLOWED_HOSTS": "localhost,127.0.0.1"
+    "ALLOWED_HOSTS": "localhost,127.0.0.1",
+    "SSH_AUTH_SOCK": "/tmp/ssh-agent"
   }
 }
