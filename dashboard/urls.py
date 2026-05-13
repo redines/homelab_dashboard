@@ -9,7 +9,9 @@ urlpatterns = [
     path('api/services/', views.api_services, name='api_services'),
     path('api/services/create/', views.create_service, name='create_service'),
     path('api/services/refresh/', views.refresh_services, name='refresh_services'),
+    path('api/services/health/', views.check_services_health, name='check_services_health'),
     path('api/services/<int:service_id>/health/', views.check_service_health, name='check_health'),
+    path('api/services/<int:service_id>/check-health/', views.check_service_health, name='check_health_legacy'),
     path('api/services/<int:service_id>/update/', views.update_service, name='update_service'),
     path('api/services/<int:service_id>/delete/', views.delete_service, name='delete_service'),
     path('api/services/<int:service_id>/credentials/', views.update_service_credentials, name='update_credentials'),
@@ -21,6 +23,8 @@ urlpatterns = [
     path('grafana/', views.grafana_panels_view, name='grafana_panels'),
     path('grafana/<int:panel_id>/', views.grafana_panel_detail, name='grafana_panel_detail'),
     path('api/grafana/panels/', views.api_grafana_panels, name='api_grafana_panels'),
+
+    path('api/services/<int:service_id>/qb-stats/', views.qbittorrent_stats, name='qbittorrent_stats'),
 
     # Media discovery feed
     path('api/media/feed/',   views.media_feed,   name='media_feed'),

@@ -142,13 +142,16 @@
             <!-- Meta: response time + URL -->
             <div class="flex-1 min-w-0 hidden sm:block">
               <div class="flex items-center gap-3 text-xs text-text-secondary flex-wrap">
-                {% if service.response_time %}
-                <span class="font-mono">
-                  <span class="text-text-primary font-semibold">{{ service.response_time }}</span> ms
+                <span class="font-mono {% if not service.response_time %}hidden{% endif %}" data-response-time>
+                  <span class="text-text-primary font-semibold">{% if service.response_time %}{{ service.response_time }}{% endif %}</span> ms
                 </span>
-                {% endif %}
                 <span class="truncate max-w-[200px] opacity-70">{{ service.url }}</span>
               </div>
+              {% if service.api_type == 'qbittorrent' and service.api_detected %}
+              <div class="flex items-center gap-3 mt-1.5 text-xs flex-wrap" id="qb-stats-{{ service.id }}">
+                <span class="text-text-secondary">&#8203;</span>
+              </div>
+              {% endif %}
               {% if service.tags %}
               <div class="flex flex-wrap gap-1 mt-1">
                 {% for tag in service.tags.split %}
@@ -166,7 +169,7 @@
                   {% if service.status == 'up' %}bg-success/15 text-success border border-success/30
                   {% elif service.status == 'down' %}bg-danger/15 text-danger border border-danger/30
                   {% else %}bg-warning/15 text-warning border border-warning/30{% endif %}">
-                <span class="w-1.5 h-1.5 rounded-full
+                <span data-status-dot class="w-1.5 h-1.5 rounded-full
                   {% if service.status == 'up' %}bg-success
                   {% elif service.status == 'down' %}bg-danger
                   {% else %}bg-warning{% endif %}"></span>
