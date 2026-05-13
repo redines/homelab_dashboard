@@ -1,25 +1,14 @@
 """Pytest configuration and fixtures for testing."""
 
 import pytest
-from django.conf import settings
 from django.test import Client
 from dashboard.models import Service, HealthCheck, GrafanaPanel
 from django.utils import timezone
 import os
 
 
-# Configure Django settings for tests
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'homelab_dashboard.settings')
-
-
-@pytest.fixture(scope='session')
-def django_db_setup():
-    """Setup the test database."""
-    settings.DATABASES['default'] = {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': ':memory:',
-        'ATOMIC_REQUESTS': False,
-    }
+# Configure Django settings for tests when fixtures are imported outside pytest.
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'homelab_dashboard.test_settings')
 
 
 @pytest.fixture

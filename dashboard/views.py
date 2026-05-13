@@ -3,15 +3,58 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib import messages
+from django.db import close_old_connections
 from .models import Service, HealthCheck, GrafanaPanel
 from .utils.traefik_service import sync_traefik_services
 from .utils.generic_api_client import GenericAPIClient
 from django.utils import timezone
 import logging
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 
 logger = logging.getLogger(__name__)
+
+
+def serialize_service(service):
+    """Return the JSON shape used by service list endpoints."""
+    return {
+        'id': service.id,
+        'name': service.name,
+        'url': service.url,
+        'status': service.status,
+        'service_type': service.service_type,
+        'provider': service.provider,
+        'description': service.description,
+        'icon': service.icon,
+        'tags': service.tags.split(',') if service.tags else [],
+        'response_time': service.response_time,
+        'last_checked': service.last_checked.isoformat() if service.last_checked else None,
+        'uptime_percentage': service.uptime_percentage,
+    }
+
+
+def run_service_health_check(service_id):
+    close_old_connections()
+    try:
+        service = Service.objects.get(id=service_id)
+        service.check_health()
+        return service.id
+    finally:
+        close_old_connections()
+
+
+def normalize_api_type(api_type):
+    """Map user-provided API type values to the model's valid choices."""
+    normalized = (api_type or '').strip().lower().replace(' ', '').replace('-', '')
+    aliases = {
+        'qbittorrent': 'qbittorrent',
+        'qb': 'qbittorrent',
+        'sonarr': 'sonarr',
+        'radarr': 'radarr',
+        'custom': 'custom',
+    }
+    return aliases.get(normalized)
 
 
 def check_all_services_health():
@@ -31,10 +74,6 @@ def dashboard(request):
     # Get active Grafana panels (limit to first 4 for dashboard preview)
     grafana_panels = GrafanaPanel.objects.filter(is_active=True).order_by('display_order', 'title')[:4]
     
-    # Trigger async health check in background thread
-    health_check_thread = threading.Thread(target=check_all_services_health, daemon=True)
-    health_check_thread.start()
-    
     context = {
         'services': services,
         'total_services': services.count(),
@@ -52,25 +91,38 @@ def dashboard(request):
 def api_services(request):
     """API endpoint to get all services as JSON."""
     services = Service.objects.all().order_by('name')
-    
-    services_data = []
-    for service in services:
-        services_data.append({
-            'id': service.id,
-            'name': service.name,
-            'url': service.url,
-            'status': service.status,
-            'service_type': service.service_type,
-            'provider': service.provider,
-            'description': service.description,
-            'icon': service.icon,
-            'tags': service.tags.split(',') if service.tags else [],
-            'response_time': service.response_time,
-            'last_checked': service.last_checked.isoformat() if service.last_checked else None,
-            'uptime_percentage': service.uptime_percentage,
-        })
+    services_data = [serialize_service(service) for service in services]
     
     return JsonResponse({
+        'services': services_data,
+        'total': len(services_data),
+        'timestamp': timezone.now().isoformat(),
+    })
+
+
+@require_http_methods(["POST"])
+def check_services_health(request):
+    """Check health for all services without syncing Traefik or reloading the page."""
+    service_ids = list(Service.objects.values_list('id', flat=True))
+    checked_count = 0
+
+    # Run checks concurrently so one slow/down service does not delay every row.
+    max_workers = min(8, len(service_ids)) or 1
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(run_service_health_check, service_id) for service_id in service_ids]
+        for future in as_completed(futures):
+            try:
+                future.result()
+                checked_count += 1
+            except Exception as e:
+                logger.error(f"Error checking service health: {e}")
+
+    services = Service.objects.all().order_by('name')
+    services_data = [serialize_service(service) for service in services]
+
+    return JsonResponse({
+        'success': True,
+        'health_checks': checked_count,
         'services': services_data,
         'total': len(services_data),
         'timestamp': timezone.now().isoformat(),
@@ -162,11 +214,17 @@ def check_service_health(request, service_id):
 def service_detail(request, service_id):
     """Service detail page with API integration."""
     service = get_object_or_404(Service, id=service_id)
+    suggested_api_type = service.api_type
+    if not suggested_api_type and 'qbittorrent' in service.name.lower():
+        suggested_api_type = 'qbittorrent'
+    suggested_auth_method = 'api_key' if service.api_key else 'basic'
     
     context = {
         'service': service,
         'has_api': bool(service.api_type and service.api_url),
         'has_credentials': bool((service.api_username and service.api_password) or service.api_key),
+        'suggested_api_type': suggested_api_type,
+        'suggested_auth_method': suggested_auth_method,
     }
     
     return render(request, 'dashboard/service_detail.html', context)
@@ -193,14 +251,36 @@ def update_service_credentials(request, service_id):
                 service.api_url = api_url
                 logger.info(f"Updated API URL for {service.name}: {api_url}")
         if 'api_type' in data:
-            service.api_type = data['api_type']
-        if 'api_username' in data:
-            service.api_username = data['api_username']
-        if 'api_password' in data:
-            service.api_password = data['api_password']
-        if 'api_key' in data:
-            service.api_key = data['api_key']
-        
+            api_type = normalize_api_type(data['api_type'])
+            if not api_type:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Invalid API type. Choose qBittorrent, Sonarr, Radarr, or Custom.',
+                }, status=400)
+            service.api_type = api_type
+            service.api_detected = True
+            if api_type == 'qbittorrent' and not service.api_endpoint:
+                service.api_endpoint = '/api/v2'
+
+        auth_method = data.get('auth_method')
+        if auth_method not in ('basic', 'api_key', None):
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid authentication method. Choose username/password or API key.',
+            }, status=400)
+
+        if auth_method is None:
+            auth_method = 'api_key' if data.get('api_key') and not (data.get('api_username') or data.get('api_password')) else 'basic'
+
+        if auth_method == 'api_key':
+            service.api_key = data.get('api_key', '').strip()
+            service.api_username = ''
+            service.api_password = ''
+        else:
+            service.api_username = data.get('api_username', '').strip()
+            service.api_password = data.get('api_password', '')
+            service.api_key = ''
+
         service.save()
         
         return JsonResponse({
@@ -309,6 +389,18 @@ def service_api_docs(request, service_id):
         'qbittorrent': {
             'name': 'qBittorrent',
             'official_docs': 'https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API',
+            'references': [
+                {
+                    'name': 'qBittorrent Wiki',
+                    'url': 'https://github.com/qbittorrent/qBittorrent/wiki/',
+                    'description': 'General qBittorrent documentation, WebUI setup, authentication, reverse proxy notes, and troubleshooting.',
+                },
+                {
+                    'name': 'qBittorrent WebUI API',
+                    'url': 'https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API',
+                    'description': 'Canonical WebUI API endpoint reference for integrations.',
+                },
+            ],
             'endpoints': [
                 {
                     'category': 'Authentication',
@@ -447,7 +539,19 @@ def service_api_docs(request, service_id):
         },
         'sonarr': {
             'name': 'Sonarr',
-            'official_docs': 'https://wiki.servarr.com/sonarr/api',
+            'official_docs': 'https://sonarr.tv/docs/api/#v3/description/introduction',
+            'references': [
+                {
+                    'name': 'Sonarr API Docs',
+                    'url': 'https://sonarr.tv/docs/api/#v3/description/introduction',
+                    'description': 'Official interactive API documentation for Sonarr v3 endpoints.',
+                },
+                {
+                    'name': 'Servarr Sonarr API Wiki',
+                    'url': 'https://wiki.servarr.com/sonarr/api',
+                    'description': 'Servarr wiki notes for API usage and authentication.',
+                },
+            ],
             'endpoints': [
                 {
                     'category': 'Series',
@@ -470,6 +574,12 @@ def service_api_docs(request, service_id):
                             'path': '/api/v3/series',
                             'description': 'Add a new series',
                         },
+                        {
+                            'name': 'Lookup Series',
+                            'method': 'GET',
+                            'path': '/api/v3/series/lookup',
+                            'description': 'Search for series to add. Use query parameter: term',
+                        },
                     ]
                 },
                 {
@@ -480,6 +590,35 @@ def service_api_docs(request, service_id):
                             'method': 'GET',
                             'path': '/api/v3/episode',
                             'description': 'Get episodes, optionally filtered by series ID',
+                        },
+                        {
+                            'name': 'Episode Files',
+                            'method': 'GET',
+                            'path': '/api/v3/episodefile',
+                            'description': 'Get episode files, optionally filtered by series ID',
+                        },
+                    ]
+                },
+                {
+                    'category': 'Calendar & Wanted',
+                    'endpoints': [
+                        {
+                            'name': 'Get Calendar',
+                            'method': 'GET',
+                            'path': '/api/v3/calendar',
+                            'description': 'Get upcoming and recent episodes from the calendar',
+                        },
+                        {
+                            'name': 'Get Missing Episodes',
+                            'method': 'GET',
+                            'path': '/api/v3/wanted/missing',
+                            'description': 'Get wanted/missing episodes',
+                        },
+                        {
+                            'name': 'Get Cutoff Unmet',
+                            'method': 'GET',
+                            'path': '/api/v3/wanted/cutoff',
+                            'description': 'Get episodes that have not met cutoff',
                         },
                     ]
                 },
@@ -492,6 +631,70 @@ def service_api_docs(request, service_id):
                             'path': '/api/v3/queue',
                             'description': 'Get currently downloading/processing items',
                         },
+                        {
+                            'name': 'Queue Details',
+                            'method': 'GET',
+                            'path': '/api/v3/queue/details',
+                            'description': 'Get detailed queue items',
+                        },
+                        {
+                            'name': 'Delete Queue Item',
+                            'method': 'DELETE',
+                            'path': '/api/v3/queue/{id}',
+                            'description': 'Remove an item from the queue by ID',
+                        },
+                    ]
+                },
+                {
+                    'category': 'Search & Commands',
+                    'endpoints': [
+                        {
+                            'name': 'Get Commands',
+                            'method': 'GET',
+                            'path': '/api/v3/command',
+                            'description': 'Get command history/status',
+                        },
+                        {
+                            'name': 'Run Command',
+                            'method': 'POST',
+                            'path': '/api/v3/command',
+                            'description': 'Run a Sonarr command such as SeriesSearch or EpisodeSearch',
+                        },
+                    ]
+                },
+                {
+                    'category': 'Configuration',
+                    'endpoints': [
+                        {
+                            'name': 'Quality Profiles',
+                            'method': 'GET',
+                            'path': '/api/v3/qualityprofile',
+                            'description': 'Get quality profiles',
+                        },
+                        {
+                            'name': 'Root Folders',
+                            'method': 'GET',
+                            'path': '/api/v3/rootfolder',
+                            'description': 'Get configured root folders',
+                        },
+                        {
+                            'name': 'Tags',
+                            'method': 'GET',
+                            'path': '/api/v3/tag',
+                            'description': 'Get tags',
+                        },
+                        {
+                            'name': 'Download Clients',
+                            'method': 'GET',
+                            'path': '/api/v3/downloadclient',
+                            'description': 'Get configured download clients',
+                        },
+                        {
+                            'name': 'Indexers',
+                            'method': 'GET',
+                            'path': '/api/v3/indexer',
+                            'description': 'Get configured indexers',
+                        },
                     ]
                 },
                 {
@@ -502,6 +705,24 @@ def service_api_docs(request, service_id):
                             'method': 'GET',
                             'path': '/api/v3/system/status',
                             'description': 'Get system status information',
+                        },
+                        {
+                            'name': 'Health',
+                            'method': 'GET',
+                            'path': '/api/v3/health',
+                            'description': 'Get health check messages',
+                        },
+                        {
+                            'name': 'Disk Space',
+                            'method': 'GET',
+                            'path': '/api/v3/diskspace',
+                            'description': 'Get disk space information',
+                        },
+                        {
+                            'name': 'History',
+                            'method': 'GET',
+                            'path': '/api/v3/history',
+                            'description': 'Get event/download history',
                         },
                     ]
                 },
@@ -623,6 +844,8 @@ def generic_api_proxy(request, service_id):
         client_kwargs = {
             'base_url': service.api_url,
         }
+        if service.api_type == 'qbittorrent':
+            client_kwargs['auth_endpoint'] = '/api/v2/auth/login'
         
         # Add authentication if configured
         if service.api_username and service.api_password:
@@ -943,7 +1166,7 @@ def qbittorrent_stats(request, service_id):
         return JsonResponse({'success': False, 'error': 'No API credentials configured'}, status=400)
 
     try:
-        client_kwargs = {'base_url': service.api_url}
+        client_kwargs = {'base_url': service.api_url, 'auth_endpoint': '/api/v2/auth/login'}
         if service.api_username and service.api_password:
             client_kwargs['username'] = service.api_username
             client_kwargs['password'] = service.api_password
@@ -1143,4 +1366,3 @@ def media_add(request):
         return JsonResponse({'success': False, 'error': 'Failed to add to Sonarr'})
     else:
         return JsonResponse({'success': False, 'error': 'Unknown media_type'}, status=400)
-

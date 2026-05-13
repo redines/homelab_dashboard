@@ -114,10 +114,15 @@
   // ---------------------------------------------------------------------------
 
   function init() {
-    document.querySelectorAll('[id^="qb-stats-"]').forEach(function (el) {
-      const serviceId = el.id.replace('qb-stats-', '');
-      loadQbStats(serviceId);
-    });
+    // Stagger qB requests slightly so multiple rows do not all hit the API at once.
+    setTimeout(function () {
+      document.querySelectorAll('[id^="qb-stats-"]').forEach(function (el, index) {
+        const serviceId = el.id.replace('qb-stats-', '');
+        setTimeout(function () {
+          loadQbStats(serviceId);
+        }, index * 750);
+      });
+    }, 3000);
 
     initCleanupWidget();
   }

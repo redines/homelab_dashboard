@@ -3,26 +3,18 @@
 
 {% block main_area %}
 <div class="flex overflow-hidden" style="height: calc(100vh - 73px);">
-  <!-- Left sidebar -->
+
+  <!-- Left sidebar: media feed -->
   <aside id="media-sidebar"
          class="flex flex-col bg-bg-secondary border-r border-border transition-all duration-300 w-80 shrink-0 overflow-hidden">
-    <!-- Tab bar -->
-    <div id="media-tabs" class="flex border-b border-border shrink-0 overflow-x-auto">
-      <!-- tabs rendered by JS -->
-    </div>
-    <!-- Scrollable feed -->
-    <div id="media-feed-list" class="flex-1 overflow-y-auto p-2 space-y-3">
-      <!-- cards rendered by JS -->
-    </div>
-    <!-- Load More -->
+    <div id="media-tabs" class="flex border-b border-border shrink-0 overflow-x-auto"></div>
+    <div id="media-feed-list" class="flex-1 overflow-y-auto p-2 space-y-3"></div>
     <div class="p-3 shrink-0 border-t border-border">
-      <button id="load-more-btn" class="w-full py-2 text-sm bg-bg-card border border-border rounded-lg hover:bg-bg-secondary transition-colors hidden">
-        Load More
-      </button>
+      <button id="load-more-btn" class="w-full py-2 text-sm bg-bg-card border border-border rounded-lg hover:bg-bg-secondary transition-colors hidden">Load More</button>
     </div>
   </aside>
 
-  <!-- Toggle button on sidebar border -->
+  <!-- Sidebar toggle -->
   <div class="relative shrink-0 flex items-center">
     <button id="sidebar-toggle" class="w-5 h-12 bg-bg-secondary border-y border-r border-border rounded-r-lg flex items-center justify-center hover:bg-bg-card transition-colors">
       <svg id="sidebar-arrow" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -31,297 +23,312 @@
     </button>
   </div>
 
-  <!-- Main content -->
-  <main class="flex-1 overflow-y-auto py-8">
-    <div class="max-w-screen-2xl mx-auto px-5">
-<div class="my-8">
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div class="bg-bg-secondary border border-border rounded-xl p-6 flex items-center gap-4 shadow-md transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-xl">
-            <div class="text-4xl">📊</div>
-            <div>
-                <div class="text-3xl font-bold leading-none" id="total-services">{{ total_services }}</div>
-                <div class="text-sm text-text-secondary mt-1">Total Services</div>
-            </div>
-        </div>
-        <div class="bg-bg-secondary border border-border rounded-xl p-6 flex items-center gap-4 shadow-md transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-xl">
-            <div class="text-4xl">✅</div>
-            <div>
-                <div class="text-3xl font-bold leading-none text-success" id="up-services">{{ up_services }}</div>
-                <div class="text-sm text-text-secondary mt-1">Services Up</div>
-            </div>
-        </div>
-        <div class="bg-bg-secondary border border-border rounded-xl p-6 flex items-center gap-4 shadow-md transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-xl">
-            <div class="text-4xl">❌</div>
-            <div>
-                <div class="text-3xl font-bold leading-none text-danger" id="down-services">{{ down_services }}</div>
-                <div class="text-sm text-text-secondary mt-1">Services Down</div>
-            </div>
-        </div>
-        <div class="bg-bg-secondary border border-border rounded-xl p-6 flex items-center gap-4 shadow-md transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-xl">
-            <div class="text-4xl">🔌</div>
-            <div>
-                <div class="text-3xl font-bold leading-none text-blue-400" id="api-services">{{ api_services }}</div>
-                <div class="text-sm text-text-secondary mt-1">APIs Available</div>
-            </div>
-        </div>
-    </div>
-</div>
+  <!-- Main content: full height, no page scroll -->
+  <main class="flex-1 flex flex-col overflow-hidden min-w-0">
 
-<!-- Grafana Monitoring Section -->
-{% if grafana_panels %}
-<div class="mb-12">
-    <div class="flex justify-between items-center mb-6">
-        <h2 class="text-2xl font-bold">📈 Resource Monitoring</h2>
-        <a href="{% url 'dashboard:grafana_panels' %}" 
-           class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors text-sm font-medium">
-            View All Panels →
-        </a>
+    <!-- ── Stats bar ─────────────────────────────────────── -->
+    <div class="shrink-0 px-5 pt-4 pb-3 border-b border-border bg-bg-primary/60 backdrop-blur-sm">
+      <div class="flex items-center gap-3 flex-wrap">
+        <div class="flex items-center gap-2 px-4 py-2 bg-bg-secondary border border-border rounded-xl text-sm">
+          <span class="text-lg">📊</span>
+          <span class="font-bold text-text-primary text-base" id="total-services">{{ total_services }}</span>
+          <span class="text-text-secondary">Total</span>
+        </div>
+        <div class="flex items-center gap-2 px-4 py-2 bg-bg-secondary border border-success/30 rounded-xl text-sm">
+          <span class="w-2 h-2 rounded-full bg-success inline-block"></span>
+          <span class="font-bold text-success text-base" id="up-services">{{ up_services }}</span>
+          <span class="text-text-secondary">Up</span>
+        </div>
+        <div class="flex items-center gap-2 px-4 py-2 bg-bg-secondary border border-danger/30 rounded-xl text-sm">
+          <span class="w-2 h-2 rounded-full bg-danger inline-block"></span>
+          <span class="font-bold text-danger text-base" id="down-services">{{ down_services }}</span>
+          <span class="text-text-secondary">Down</span>
+        </div>
+        <div class="flex items-center gap-2 px-4 py-2 bg-bg-secondary border border-blue-500/30 rounded-xl text-sm">
+          <span class="text-lg">🔌</span>
+          <span class="font-bold text-blue-400 text-base" id="api-services">{{ api_services }}</span>
+          <span class="text-text-secondary">APIs</span>
+        </div>
+
+        <!-- Spacer + action buttons -->
+        <div class="flex-1"></div>
+        <button id="add-service-btn"
+                class="flex items-center gap-1.5 px-3 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-semibold rounded-lg transition-colors">
+          ➕ Add Service
+        </button>
+        <button id="refresh-services-btn"
+                class="flex items-center gap-1.5 px-3 py-2 bg-bg-secondary border border-border hover:bg-bg-card text-xs font-medium rounded-lg transition-colors">
+          🔄 Refresh
+        </button>
+      </div>
     </div>
-    
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {% for panel in grafana_panels|slice:":4" %}
-        <div class="bg-bg-secondary border border-border rounded-xl p-6 shadow-md hover:shadow-xl transition-all duration-300">
-            <div class="flex justify-between items-start mb-4">
-                <div>
-                    <h3 class="text-lg font-bold">{{ panel.title }}</h3>
-                    {% if panel.description %}
-                        <p class="text-sm text-text-secondary">{{ panel.description|truncatewords:15 }}</p>
-                    {% endif %}
-                </div>
-                <a href="{% url 'dashboard:grafana_panel_detail' panel.id %}" 
-                   class="p-2 hover:bg-bg-tertiary rounded-lg transition-colors" 
-                   title="Fullscreen">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path>
-                    </svg>
+
+    <!-- ── Scrollable body ──────────────────────────────── -->
+    <div class="flex-1 overflow-hidden flex flex-col min-h-0 px-5 py-4 gap-4">
+
+      <!-- Grafana panels (collapsible, only if present) -->
+      {% if grafana_panels %}
+      <div class="shrink-0">
+        <details class="group">
+          <summary class="flex items-center gap-2 cursor-pointer select-none text-sm font-semibold text-text-secondary hover:text-text-primary transition-colors list-none">
+            <svg class="w-4 h-4 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+            📈 Resource Monitoring
+            <span class="ml-auto text-xs font-normal text-text-secondary">
+              <a href="{% url 'dashboard:grafana_panels' %}" class="hover:text-primary transition-colors" onclick="event.stopPropagation()">View All →</a>
+            </span>
+          </summary>
+          <div class="mt-3 grid grid-cols-1 xl:grid-cols-2 gap-3">
+            {% for panel in grafana_panels|slice:":4" %}
+            <div class="bg-bg-secondary/60 border border-border rounded-xl p-3 backdrop-blur-sm">
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-sm font-semibold">{{ panel.title }}</span>
+                <a href="{% url 'dashboard:grafana_panel_detail' panel.id %}" class="p-1 hover:bg-bg-card rounded transition-colors" title="Fullscreen">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+                  </svg>
                 </a>
+              </div>
+              <div class="rounded-lg overflow-hidden bg-black/20" style="height: {{ panel.height }}px;">
+                <iframe src="{{ panel.get_embed_url }}" width="100%" height="{{ panel.height }}" frameborder="0" loading="lazy" style="border:none;"></iframe>
+              </div>
             </div>
-            <div class="rounded-lg overflow-hidden bg-black/20" style="height: {{ panel.height }}px;">
-                <iframe 
-                    src="{{ panel.get_embed_url }}"
-                    width="100%" 
-                    height="{{ panel.height }}"
-                    frameborder="0"
-                    loading="lazy"
-                    style="border: none;">
-                </iframe>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-</div>
-{% endif %}
+            {% endfor %}
+          </div>
+        </details>
+      </div>
+      {% endif %}
 
-<!-- Torrent Queue Cleanup -->
-<div id="torrent-cleanup-section" class="mb-8 hidden">
-    <div class="bg-bg-secondary border border-border rounded-xl p-5 shadow-md">
-        <div class="flex items-center justify-between mb-3">
+      <!-- Torrent Queue Cleanup -->
+      <div id="torrent-cleanup-section" class="shrink-0 hidden">
+        <div class="bg-bg-secondary/60 border border-border rounded-xl p-4 backdrop-blur-sm">
+          <div class="flex items-center justify-between gap-4">
             <div>
-                <h2 class="text-lg font-bold">🧹 Torrent Queue Cleanup</h2>
-                <p class="text-xs text-text-secondary mt-0.5">Removes completed &amp; imported torrents from qBittorrent and deletes their source files.</p>
+              <h2 class="text-sm font-semibold text-text-primary">🧹 Torrent Queue Cleanup</h2>
+              <p class="text-xs text-text-secondary mt-0.5">Removes completed &amp; imported torrents from qBittorrent and deletes their source files.</p>
             </div>
-            <div class="flex gap-2">
-                <button id="cleanup-dry-run-btn"
-                        class="px-4 py-2 border border-border rounded-lg hover:bg-bg-card text-sm font-medium transition-colors">
-                    🔍 Dry Run
-                </button>
-                <button id="cleanup-run-btn"
-                        class="px-4 py-2 bg-danger/80 hover:bg-danger text-white rounded-lg text-sm font-medium transition-colors">
-                    🗑 Run Cleanup
-                </button>
+            <div class="flex gap-2 shrink-0">
+              <button id="cleanup-dry-run-btn"
+                      class="px-3 py-2 border border-border rounded-lg hover:bg-bg-card text-xs font-medium transition-colors">
+                🔍 Dry Run
+              </button>
+              <button id="cleanup-run-btn"
+                      class="px-3 py-2 bg-danger/80 hover:bg-danger text-white rounded-lg text-xs font-semibold transition-colors">
+                🗑 Run Cleanup
+              </button>
             </div>
+          </div>
+          <div id="cleanup-result" class="hidden mt-3 p-3 bg-bg-primary rounded-lg text-xs font-mono space-y-0.5 max-h-48 overflow-y-auto"></div>
         </div>
-        <div id="cleanup-result" class="hidden mt-3 p-3 bg-bg rounded-lg text-xs font-mono space-y-0.5 max-h-48 overflow-y-auto"></div>
-    </div>
-</div>
+      </div>
 
-<!-- Services List -->
-<div class="mb-12">
-    <div class="flex justify-between items-center mb-4">
-        <h2 class="text-2xl font-bold">🖥️ Services</h2>
-        <span class="text-sm text-text-secondary">{{ total_services }} service{{ total_services|pluralize }}</span>
-    </div>
-    <div class="bg-bg-secondary border border-border rounded-xl overflow-hidden shadow-md" id="services-list">
-        {% for service in services %}
-        <div class="flex items-center gap-4 px-5 py-4 border-b border-border last:border-b-0
-                    hover:bg-bg-card transition-colors cursor-pointer
-                    border-l-4
-                    {% if service.status == 'up' %}border-l-success
-                    {% elif service.status == 'down' %}border-l-danger
-                    {% else %}border-l-warning{% endif %}"
-             data-service-id="{{ service.id }}">
+      <!-- ── Services panel (takes remaining height, scrolls internally) -->
+      <div class="flex-1 flex flex-col min-h-0 bg-bg-secondary/40 border border-border rounded-xl backdrop-blur-sm overflow-hidden">
+
+        <!-- Panel header -->
+        <div class="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0 bg-bg-secondary/60">
+          <span class="text-sm font-semibold text-text-primary">🖥️ Services</span>
+          <span class="text-xs text-text-secondary">{{ total_services }} service{{ total_services|pluralize }}</span>
+
+          <!-- Search / filter (optional, wired via JS if needed) -->
+          <div class="flex-1"></div>
+          <input id="service-search" type="text" placeholder="Filter services…"
+                 class="px-3 py-1.5 text-xs bg-bg-primary border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-text-primary placeholder-text-secondary w-44 transition-all focus:w-56">
+        </div>
+
+        <!-- Scrollable service rows -->
+        <div class="flex-1 overflow-y-auto" id="services-list">
+          {% for service in services %}
+          <div class="flex items-center gap-3 px-4 py-3 border-b border-border/60 last:border-b-0
+                      hover:bg-bg-card/60 transition-colors cursor-pointer group
+                      border-l-4
+                      {% if service.status == 'up' %}border-l-success
+                      {% elif service.status == 'down' %}border-l-danger
+                      {% else %}border-l-warning{% endif %}"
+               data-service-id="{{ service.id }}">
 
             <!-- Icon -->
-            <div class="text-2xl w-9 shrink-0 text-center">
-                {{ service.icon|default:"🔧" }}
+            <div class="text-xl w-8 shrink-0 text-center">{{ service.icon|default:"🔧" }}</div>
+
+            <!-- Name + badges -->
+            <div class="w-44 shrink-0 min-w-0">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="font-semibold text-sm text-text-primary truncate">{{ service.name }}</span>
+                {% if service.api_detected %}
+                <span class="px-1.5 py-px rounded text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">API</span>
+                {% endif %}
+              </div>
+              <div class="text-xs text-text-secondary truncate">{{ service.get_service_type_display }}</div>
             </div>
 
-            <!-- Name + meta -->
-            <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 flex-wrap">
-                    <span class="font-semibold text-text-primary truncate">{{ service.name }}</span>
-                    {% if service.api_detected %}
-                    <span class="px-2 py-0.5 rounded text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30" title="API Available">🔌 API</span>
-                    {% endif %}
-                </div>
-                <div class="flex items-center gap-4 mt-1 text-xs text-text-secondary flex-wrap">
-                    <span>{{ service.get_service_type_display }}</span>
-                    {% if service.response_time %}<span>{{ service.response_time }} ms</span>{% endif %}
-                    {% if service.last_checked %}<span>Checked {{ service.last_checked|timesince }} ago</span>{% endif %}
-                    <span class="truncate max-w-xs">{{ service.url }}</span>
-                </div>
-                {% if service.api_type == 'qbittorrent' and service.api_detected %}
-                <div class="flex items-center gap-3 mt-1.5 text-xs flex-wrap" id="qb-stats-{{ service.id }}">
-                    <span class="text-text-secondary">&#8203;</span>
-                </div>
-                {% endif %}
-                {% if service.tags %}
-                <div class="flex flex-wrap gap-1 mt-1">
-                    {% for tag in service.tags.split %}
-                        {% if tag %}
-                        <span class="bg-bg text-text-secondary px-2 py-0.5 rounded text-xs">{{ tag }}</span>
-                        {% endif %}
-                    {% endfor %}
-                </div>
-                {% endif %}
-            </div>
-
-            <!-- Status badge -->
-            <div class="shrink-0">
-                <span class="px-3 py-1 rounded-xl text-xs font-semibold uppercase tracking-wide
-                    {% if service.status == 'up' %}bg-success/20 text-success
-                    {% elif service.status == 'down' %}bg-danger/20 text-danger
-                    {% else %}bg-warning/20 text-warning{% endif %}">
-                    {{ service.status|upper }}
+            <!-- Meta: response time + URL -->
+            <div class="flex-1 min-w-0 hidden sm:block">
+              <div class="flex items-center gap-3 text-xs text-text-secondary flex-wrap">
+                <span class="font-mono {% if not service.response_time %}hidden{% endif %}" data-response-time>
+                  <span class="text-text-primary font-semibold">{% if service.response_time %}{{ service.response_time }}{% endif %}</span> ms
                 </span>
+                <span class="truncate max-w-[200px] opacity-70">{{ service.url }}</span>
+              </div>
+              {% if service.api_type == 'qbittorrent' and service.api_detected %}
+              <div class="flex items-center gap-3 mt-1.5 text-xs flex-wrap" id="qb-stats-{{ service.id }}">
+                <span class="text-text-secondary">&#8203;</span>
+              </div>
+              {% endif %}
+              {% if service.tags %}
+              <div class="flex flex-wrap gap-1 mt-1">
+                {% for tag in service.tags.split %}
+                  {% if tag %}
+                  <span class="bg-bg-primary/60 text-text-secondary border border-border/50 px-1.5 py-px rounded text-[10px]">{{ tag }}</span>
+                  {% endif %}
+                {% endfor %}
+              </div>
+              {% endif %}
             </div>
 
-            <!-- Actions -->
-            <div class="flex gap-2 shrink-0">
-                <a href="{% url 'dashboard:service_detail' service.id %}"
-                   class="px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-primary/80 text-xs font-medium"
-                   onclick="event.stopPropagation()">
-                    {% if service.api_type %}🔌 Dashboard{% else %}📊 Details{% endif %}
-                </a>
-                <a href="{{ service.url }}"
-                   target="_blank"
-                   class="px-3 py-1.5 bg-bg border border-border rounded-lg hover:bg-bg-secondary text-xs font-medium"
-                   onclick="event.stopPropagation()">
-                    🔗 Open
-                </a>
+            <!-- Status pill -->
+            <div class="shrink-0">
+              <span data-status-badge class="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider
+                  {% if service.status == 'up' %}bg-success/15 text-success border border-success/30
+                  {% elif service.status == 'down' %}bg-danger/15 text-danger border border-danger/30
+                  {% else %}bg-warning/15 text-warning border border-warning/30{% endif %}">
+                <span data-status-dot class="w-1.5 h-1.5 rounded-full
+                  {% if service.status == 'up' %}bg-success
+                  {% elif service.status == 'down' %}bg-danger
+                  {% else %}bg-warning{% endif %}"></span>
+                {{ service.status|upper }}
+              </span>
             </div>
-        </div>
-        {% empty %}
-        <div class="text-center py-16">
-            <div class="text-6xl mb-4">📭</div>
-            <h2 class="text-2xl mb-2">No Services Found</h2>
-            <p class="text-text-secondary mb-4">Click "Refresh Services" to discover services from Traefik, or add one manually.</p>
-            <button onclick="document.getElementById('add-service-btn').click()" class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
-                ➕ Add Your First Service
+
+            <!-- Actions (visible on hover) -->
+            <div class="flex gap-1.5 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
+              <a href="{% url 'dashboard:service_detail' service.id %}"
+                 class="px-2.5 py-1.5 bg-primary/80 hover:bg-primary text-white rounded-lg text-[11px] font-semibold transition-colors"
+                 onclick="event.stopPropagation()">
+                {% if service.api_type %}🔌{% else %}📊{% endif %} Details
+              </a>
+              <a href="{{ service.url }}"
+                 target="_blank"
+                 class="px-2.5 py-1.5 bg-bg-card border border-border hover:bg-bg-secondary rounded-lg text-[11px] font-medium transition-colors"
+                 onclick="event.stopPropagation()">
+                🔗 Open
+              </a>
+            </div>
+          </div>
+          {% empty %}
+          <div class="flex flex-col items-center justify-center h-full py-16 text-center">
+            <div class="text-5xl mb-4 opacity-40">📭</div>
+            <h2 class="text-lg font-semibold mb-1">No Services Found</h2>
+            <p class="text-sm text-text-secondary mb-5">Refresh to discover services from Traefik, or add one manually.</p>
+            <button onclick="document.getElementById('add-service-btn').click()"
+                    class="px-5 py-2 bg-success/20 border border-success/30 text-success rounded-lg hover:bg-success/30 font-medium text-sm transition-colors">
+              ➕ Add Your First Service
             </button>
+          </div>
+          {% endfor %}
         </div>
-        {% endfor %}
-    </div>
-</div>
+      </div><!-- /services panel -->
 
-<!-- Add Service Modal -->
-<div id="add-service-modal" class="fixed inset-0 bg-black/50 flex justify-center items-center z-[1000]" style="display: none;">
-    <div class="bg-bg-secondary border border-border rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div class="flex justify-between items-center mb-6">
-            <h2 class="text-2xl font-bold">➕ Add New Service</h2>
-            <button id="close-modal-btn" class="text-2xl hover:text-danger">&times;</button>
-        </div>
-        
-        <form id="add-service-form" class="space-y-4">
-            <div>
-                <label class="block text-sm font-medium mb-2">Service Name *</label>
-                <input type="text" id="service-name" name="name" required 
-                       class="w-full px-4 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                       placeholder="e.g., Plex, Nextcloud, or Google">
-            </div>
-            
-            <div>
-                <label class="block text-sm font-medium mb-2">Service URL *</label>
-                <input type="text" id="service-url" name="url" required 
-                       class="w-full px-4 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                       placeholder="e.g., plex.example.com or 192.168.1.100:8080">
-                <p class="text-xs text-text-secondary mt-1">Protocol (https://) will be added automatically if not specified</p>
-            </div>
-            
-            <div>
-                <label class="block text-sm font-medium mb-2">Description</label>
-                <textarea id="service-description" name="description" rows="2"
-                          class="w-full px-4 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                          placeholder="Brief description of the service"></textarea>
-            </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-medium mb-2">Icon (Emoji)</label>
-                    <input type="text" id="service-icon" name="icon" 
-                           class="w-full px-4 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                           placeholder="🎬">
-                </div>
-                
-                <div>
-                    <label class="block text-sm font-medium mb-2">Service Type</label>
-                    <select id="service-type" name="service_type"
-                            class="w-full px-4 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
-                        <option value="docker">Docker</option>
-                        <option value="kubernetes">Kubernetes</option>
-                        <option value="vm">Virtual Machine</option>
-                        <option value="bare_metal">Bare Metal</option>
-                        <option value="external">External Service</option>
-                        <option value="other">Other</option>
-                    </select>
-                </div>
-            </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-medium mb-2">Provider</label>
-                    <select id="service-provider" name="provider"
-                            class="w-full px-4 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
-                        <option value="local">Local</option>
-                        <option value="external">External</option>
-                    </select>
-                </div>
-                
-                <div>
-                    <label class="block text-sm font-medium mb-2">Tags</label>
-                    <input type="text" id="service-tags" name="tags" 
-                           class="w-full px-4 py-2 bg-bg-secondary border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                           placeholder="media, cloud, productivity">
-                    <p class="text-xs text-text-secondary mt-1">Comma-separated</p>
-                </div>
-            </div>
-            
-            <div id="form-error" class="text-danger text-sm hidden"></div>
-            
-            <div class="flex gap-3 pt-4">
-                <button type="submit" class="flex-1 px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-hover font-medium">
-                    Add Service
-                </button>
-                <button type="button" id="cancel-modal-btn" class="px-6 py-3 bg-bg border border-border rounded-lg hover:bg-bg-secondary font-medium">
-                    Cancel
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<div id="loading-overlay" class="fixed inset-0 bg-bg-primary/90 flex justify-center items-center z-[1000]" style="display: none;">
-    <div class="text-center">
-        <div class="w-12 h-12 border-4 border-border border-t-primary rounded-full animate-spin-slow mx-auto mb-4"></div>
-        <p>Refreshing services...</p>
-    </div>
-</div>
-    </div>
+    </div><!-- /scrollable body -->
   </main>
 </div>
+
+<!-- ── Add Service Modal ──────────────────────────────── -->
+<div id="add-service-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-[1000]" style="display: none;">
+  <div class="bg-bg-secondary border border-border rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto shadow-2xl">
+    <div class="flex justify-between items-center mb-5">
+      <h2 class="text-xl font-bold">➕ Add New Service</h2>
+      <button id="close-modal-btn" class="text-2xl text-text-secondary hover:text-danger transition-colors">&times;</button>
+    </div>
+    <form id="add-service-form" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium mb-1.5">Service Name *</label>
+        <input type="text" id="service-name" name="name" required
+               class="w-full px-3 py-2 bg-bg-primary border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+               placeholder="e.g., Plex, Nextcloud">
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1.5">Service URL *</label>
+        <input type="text" id="service-url" name="url" required
+               class="w-full px-3 py-2 bg-bg-primary border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+               placeholder="e.g., plex.example.com or 192.168.1.100:8080">
+        <p class="text-xs text-text-secondary mt-1">Protocol (https://) will be added automatically if not specified</p>
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1.5">Description</label>
+        <textarea id="service-description" name="description" rows="2"
+                  class="w-full px-3 py-2 bg-bg-primary border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="Brief description"></textarea>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium mb-1.5">Icon (Emoji)</label>
+          <input type="text" id="service-icon" name="icon"
+                 class="w-full px-3 py-2 bg-bg-primary border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                 placeholder="🎬">
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1.5">Service Type</label>
+          <select id="service-type" name="service_type"
+                  class="w-full px-3 py-2 bg-bg-primary border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+            <option value="docker">Docker</option>
+            <option value="kubernetes">Kubernetes</option>
+            <option value="vm">Virtual Machine</option>
+            <option value="bare_metal">Bare Metal</option>
+            <option value="external">External Service</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium mb-1.5">Provider</label>
+          <select id="service-provider" name="provider"
+                  class="w-full px-3 py-2 bg-bg-primary border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+            <option value="local">Local</option>
+            <option value="external">External</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1.5">Tags</label>
+          <input type="text" id="service-tags" name="tags"
+                 class="w-full px-3 py-2 bg-bg-primary border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                 placeholder="media, cloud, productivity">
+          <p class="text-xs text-text-secondary mt-1">Comma-separated</p>
+        </div>
+      </div>
+      <div id="form-error" class="text-danger text-sm hidden"></div>
+      <div class="flex gap-3 pt-2">
+        <button type="submit" class="flex-1 px-5 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-lg font-semibold text-sm transition-colors">Add Service</button>
+        <button type="button" id="cancel-modal-btn" class="px-5 py-2.5 bg-bg-card border border-border hover:bg-bg-secondary rounded-lg text-sm transition-colors">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Loading overlay -->
+<div id="loading-overlay" class="fixed inset-0 bg-bg-primary/90 backdrop-blur-sm flex justify-center items-center z-[1000]" style="display: none;">
+  <div class="text-center">
+    <div class="w-12 h-12 border-4 border-border border-t-primary rounded-full animate-spin-slow mx-auto mb-4"></div>
+    <p class="text-text-secondary">Refreshing services…</p>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
 <script src="{% static 'js/media_feed.js' %}"></script>
 <script src="{% static 'js/service_list.js' %}"></script>
+<script>
+// Live filter for service rows
+const searchInput = document.getElementById('service-search');
+if (searchInput) {
+  searchInput.addEventListener('input', function () {
+    const q = this.value.toLowerCase();
+    document.querySelectorAll('#services-list > [data-service-id]').forEach(row => {
+      row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  });
+}
+</script>
 {% endblock %}

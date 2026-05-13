@@ -108,8 +108,8 @@ class TestServiceAPIEndpoints:
         assert data['services'] == []
     
     @patch('dashboard.views.sync_traefik_services')
-    @patch('dashboard.traefik_service.is_traefik_configured')
-    @patch('dashboard.traefik_service.check_traefik_availability')
+    @patch('dashboard.utils.traefik_service.is_traefik_configured')
+    @patch('dashboard.utils.traefik_service.check_traefik_availability')
     def test_refresh_services_with_traefik(self, mock_availability, mock_configured, 
                                           mock_sync, api_client, sample_service):
         """Test refreshing services with Traefik available."""
@@ -128,8 +128,8 @@ class TestServiceAPIEndpoints:
         assert data['traefik_configured'] is True
         assert data['traefik_available'] is True
     
-    @patch('dashboard.traefik_service.is_traefik_configured')
-    @patch('dashboard.traefik_service.check_traefik_availability')
+    @patch('dashboard.utils.traefik_service.is_traefik_configured')
+    @patch('dashboard.utils.traefik_service.check_traefik_availability')
     def test_refresh_services_without_traefik(self, mock_availability, mock_configured,
                                              api_client, sample_service):
         """Test refreshing services without Traefik."""
@@ -164,6 +164,94 @@ class TestServiceAPIEndpoints:
         assert response.status_code == 404
         data = json.loads(response.content)
         assert data['success'] is False
+
+    @patch('dashboard.views.run_service_health_check')
+    def test_check_services_health_bulk(self, mock_health_check, api_client, sample_services):
+        """Test checking all services health without Traefik sync."""
+        mock_health_check.return_value = None
+
+        response = api_client.post('/api/services/health/')
+
+        assert response.status_code == 200
+        data = json.loads(response.content)
+
+        assert data['success'] is True
+        assert data['health_checks'] == len(sample_services)
+        assert data['total'] == len(sample_services)
+        assert len(data['services']) == len(sample_services)
+        assert mock_health_check.call_count == len(sample_services)
+
+    def test_update_qbittorrent_credentials(self, api_client, sample_service):
+        """Test saving qBittorrent username/password credentials."""
+        response = api_client.post(
+            f'/api/services/{sample_service.id}/credentials/',
+            data=json.dumps({
+                'api_type': 'qBittorrent',
+                'api_url': 'qbittorrent.local',
+                'auth_method': 'basic',
+                'api_username': ' admin ',
+                'api_password': '1qaz"WSX',
+                'api_key': 'old-api-key',
+            }),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.content)
+        assert data['success'] is True
+
+        sample_service.refresh_from_db()
+        assert sample_service.api_type == 'qbittorrent'
+        assert sample_service.api_url == 'https://qbittorrent.local'
+        assert sample_service.api_username == 'admin'
+        assert sample_service.api_password == '1qaz"WSX'
+        assert sample_service.api_key == ''
+        assert sample_service.api_detected is True
+        assert sample_service.api_endpoint == '/api/v2'
+
+    def test_update_qbittorrent_api_key_credentials(self, api_client, sample_service):
+        """Test saving qBittorrent API key credentials clears username/password."""
+        response = api_client.post(
+            f'/api/services/{sample_service.id}/credentials/',
+            data=json.dumps({
+                'api_type': 'qBittorrent',
+                'api_url': 'qbittorrent.local',
+                'auth_method': 'api_key',
+                'api_username': 'admin',
+                'api_password': 'old-password',
+                'api_key': 'qb-api-key-123',
+            }),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.content)
+        assert data['success'] is True
+
+        sample_service.refresh_from_db()
+        assert sample_service.api_type == 'qbittorrent'
+        assert sample_service.api_username == ''
+        assert sample_service.api_password == ''
+        assert sample_service.api_key == 'qb-api-key-123'
+        assert sample_service.api_detected is True
+        assert sample_service.api_endpoint == '/api/v2'
+
+    def test_qbittorrent_api_docs_include_wiki_reference(self, api_client, sample_service):
+        """Test qBittorrent API docs include official wiki references."""
+        sample_service.api_type = 'qbittorrent'
+        sample_service.api_url = 'https://qbittorrent.local'
+        sample_service.api_detected = True
+        sample_service.save()
+
+        response = api_client.get(f'/api/services/{sample_service.id}/api-docs/')
+
+        assert response.status_code == 200
+        data = json.loads(response.content)
+        references = data['documentation']['references']
+        urls = [reference['url'] for reference in references]
+
+        assert 'https://github.com/qbittorrent/qBittorrent/wiki/' in urls
+        assert 'https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API' in urls
 
 
 @pytest.mark.django_db
@@ -201,53 +289,64 @@ class TestServiceDetailView:
 class TestServiceManagementViews:
     """Test cases for service management (create, update, delete)."""
     
-    def test_create_service_view_get(self, api_client):
-        """Test GET request to create service form."""
-        response = api_client.get('/service/add/')
-        
-        assert response.status_code == 200
-        assert b'form' in response.content or b'Add' in response.content
-    
-    def test_create_service_post(self, api_client, db):
+    def test_create_service_requires_post(self, api_client):
+        """Test create service API rejects GET requests."""
+        response = api_client.get('/api/services/create/')
+
+        assert response.status_code == 405
+
+    @patch('dashboard.models.Service.check_health')
+    def test_create_service_post(self, mock_check_health, api_client, db):
         """Test POST request to create new service."""
+        mock_check_health.return_value = 'up'
         data = {
             'name': 'New Test Service',
             'url': 'https://newtest.local',
             'service_type': 'docker',
             'description': 'A new test service',
-            'is_manual': True
+            'provider': 'local',
         }
         
-        response = api_client.post('/service/add/', data)
-        
-        # Should redirect on success or show form
-        assert response.status_code in [200, 302]
-        
-        # Check if service was created
-        if response.status_code == 302:
-            assert Service.objects.filter(name='New Test Service').exists()
-    
-    def test_update_service_view(self, api_client, sample_service):
-        """Test updating a service."""
-        url = f'/service/{sample_service.id}/edit/'
-        response = api_client.get(url)
+        response = api_client.post(
+            '/api/services/create/',
+            data=json.dumps(data),
+            content_type='application/json',
+        )
         
         assert response.status_code == 200
-        assert sample_service.name.encode() in response.content
+        assert Service.objects.filter(name='New Test Service', is_manual=True).exists()
+
+    @patch('dashboard.models.Service.check_health')
+    def test_update_service_view(self, mock_check_health, api_client, sample_service):
+        """Test updating a manual service."""
+        mock_check_health.return_value = 'up'
+        sample_service.is_manual = True
+        sample_service.save()
+
+        response = api_client.post(
+            f'/api/services/{sample_service.id}/update/',
+            data=json.dumps({'name': 'Updated Test Service'}),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.content)
+        assert data['success'] is True
+
+        sample_service.refresh_from_db()
+        assert sample_service.name == 'Updated Test Service'
     
     def test_delete_service_view(self, api_client, sample_service):
         """Test deleting a service."""
+        sample_service.is_manual = True
+        sample_service.save()
         service_id = sample_service.id
-        url = f'/service/{service_id}/delete/'
+        url = f'/api/services/{service_id}/delete/'
         
         response = api_client.post(url)
         
-        # Should redirect after delete
-        assert response.status_code in [200, 302]
-        
-        # Service should be deleted
-        if response.status_code == 302:
-            assert not Service.objects.filter(id=service_id).exists()
+        assert response.status_code == 200
+        assert not Service.objects.filter(id=service_id).exists()
 
 
 @pytest.mark.django_db
@@ -258,14 +357,14 @@ class TestGrafanaPanelViews:
     
     def test_grafana_panels_list(self, api_client, grafana_panel):
         """Test listing Grafana panels."""
-        response = api_client.get('/grafana/panels/')
+        response = api_client.get('/grafana/')
         
         assert response.status_code == 200
         assert grafana_panel.title.encode() in response.content
     
     def test_grafana_panel_detail(self, api_client, grafana_panel):
         """Test Grafana panel detail view."""
-        url = f'/grafana/panel/{grafana_panel.id}/'
+        url = f'/grafana/{grafana_panel.id}/'
         response = api_client.get(url)
         
         assert response.status_code == 200
@@ -309,10 +408,10 @@ class TestQBittorrentView:
 class TestAPIDetectionViews:
     """Test cases for API detection endpoints."""
     
-    @patch('dashboard.api_detector.detect_api_type')
+    @patch('dashboard.utils.api_detector.APIDetector.detect_api')
     def test_detect_api_endpoint(self, mock_detect, api_client, sample_service):
         """Test API detection endpoint."""
-        mock_detect.return_value = ('qbittorrent', '/api/v2')
+        mock_detect.return_value = (True, 'qbittorrent', '/api/v2')
         
         url = f'/api/services/{sample_service.id}/detect-api/'
         response = api_client.post(url)

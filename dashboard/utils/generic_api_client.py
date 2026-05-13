@@ -5,6 +5,7 @@ import logging
 import warnings
 from typing import Dict, Optional, Any, List, Tuple
 import json
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -156,16 +157,21 @@ class GenericAPIClient:
         auth_endpoints = self._try_find_auth_endpoint()
         logger.debug(f"Will try authentication endpoints: {auth_endpoints}")
         
-        # Try different authentication methods
-        auth_methods = [
-            ('json', 'JSON body'),
-            ('form', 'Form data (application/x-www-form-urlencoded)'),
-            ('basic', 'HTTP Basic authentication'),
-        ]
-        
         for endpoint in auth_endpoints:
             url = f"{self.base_url}{endpoint}"
             logger.info(f"Attempting authentication at {url}")
+
+            # qBittorrent's WebUI API expects form-encoded credentials.
+            if endpoint == '/api/v2/auth/login':
+                auth_methods = [
+                    ('form', 'Form data (application/x-www-form-urlencoded)'),
+                ]
+            else:
+                auth_methods = [
+                    ('json', 'JSON body'),
+                    ('form', 'Form data (application/x-www-form-urlencoded)'),
+                    ('basic', 'HTTP Basic authentication'),
+                ]
             
             for method_type, method_name in auth_methods:
                 if self._try_authenticate_with_method(url, method_type, method_name):
@@ -175,6 +181,22 @@ class GenericAPIClient:
         
         logger.error("✗ All authentication attempts failed")
         return False
+
+    def _auth_headers_for_endpoint(self, url: str) -> Dict[str, str]:
+        """Return endpoint-specific headers for authentication requests."""
+        headers = {
+            'User-Agent': 'HomeLab-Dashboard/1.0',
+        }
+
+        if url.endswith('/api/v2/auth/login'):
+            parsed = urlparse(self.base_url)
+            origin = f"{parsed.scheme}://{parsed.netloc}"
+            headers.update({
+                'Origin': origin,
+                'Referer': f"{origin}/",
+            })
+
+        return headers
     
     def _try_authenticate_with_method(self, url: str, method_type: str, method_name: str) -> bool:
         """Try to authenticate using a specific method."""
@@ -187,17 +209,22 @@ class GenericAPIClient:
             logger.debug(f"Trying {method_name}")
             
             # Choose authentication method
+            headers = self._auth_headers_for_endpoint(url)
             if method_type == 'json':
-                response = self.session.post(url, json=auth_data, timeout=5)
+                response = self.session.post(url, json=auth_data, headers=headers, timeout=5)
             elif method_type == 'form':
-                response = self.session.post(url, data=auth_data, timeout=5)
+                response = self.session.post(url, data=auth_data, headers=headers, timeout=5)
             elif method_type == 'basic':
-                response = self.session.post(url, auth=(self.username, self.password), timeout=5)
+                response = self.session.post(url, auth=(self.username, self.password), headers=headers, timeout=5)
             else:
                 return False
             
             logger.debug(f"Response status: {response.status_code}, Content-Type: {response.headers.get('Content-Type', 'unknown')}")
             
+            if url.endswith('/api/v2/auth/login') and response.status_code == 204:
+                logger.debug("qBittorrent login returned 204 No Content; treating as successful cookie-based authentication")
+                return True
+
             if response.status_code == 200:
                 # Success! Now determine how to use the credentials
                 content_type = response.headers.get('Content-Type', '').lower()
@@ -207,6 +234,13 @@ class GenericAPIClient:
                     if 'ok' in response.text.lower().strip():
                         logger.debug("Plain text 'Ok.' response - cookie-based authentication")
                         return True
+                    if url.endswith('/api/v2/auth/login'):
+                        logger.warning(
+                            "qBittorrent auth failed: status=%s, body=%r",
+                            response.status_code,
+                            response.text[:200],
+                        )
+                        return False
                 
                 # Try to parse JSON response
                 try:
@@ -271,6 +305,13 @@ class GenericAPIClient:
         except Exception as e:
             logger.debug(f"Exception: {type(e).__name__}: {e}")
             return False
+        finally:
+            if 'response' in locals() and url.endswith('/api/v2/auth/login') and response.status_code != 200:
+                logger.warning(
+                    "qBittorrent auth failed: status=%s, body=%r",
+                    response.status_code,
+                    response.text[:200],
+                )
     
     def request(self, method: str, endpoint: str, **kwargs) -> Optional[Any]:
         """
@@ -358,6 +399,20 @@ class GenericAPIClient:
         except Exception as e:
             logger.error(f"✗ Unexpected error for {url}: {type(e).__name__}: {e}")
             raise
+
+    def make_request(self, endpoint: str, method: str = 'GET', **kwargs) -> requests.Response:
+        """Make a raw request and return the requests response object.
+
+        This compatibility helper is useful for tests and low-level callers that
+        need status codes, headers, or the unparsed response body.
+        """
+        if not endpoint.startswith('/'):
+            endpoint = '/' + endpoint
+
+        url = f"{self.base_url}{endpoint}"
+        method_name = method.lower()
+        request_method = getattr(self.session, method_name)
+        return request_method(url, timeout=10, **kwargs)
     
     def get(self, endpoint: str, **kwargs) -> Optional[Any]:
         """Make GET request."""

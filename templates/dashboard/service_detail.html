@@ -99,12 +99,20 @@
                 <div class="font-medium break-all">{{ service.api_url|default:"Not configured" }}</div>
             </div>
             <div>
+                <div class="text-text-secondary text-sm mb-1">Auth Method</div>
+                <div class="font-medium">{% if service.api_key %}API Key{% else %}Username / Password{% endif %}</div>
+            </div>
+            <div>
                 <div class="text-text-secondary text-sm mb-1">Username</div>
                 <div class="font-medium">{% if service.api_username %}●●●●●●●●{% else %}Not set{% endif %}</div>
             </div>
             <div>
                 <div class="text-text-secondary text-sm mb-1">Password</div>
                 <div class="font-medium">{% if service.api_password %}●●●●●●●●{% else %}Not set{% endif %}</div>
+            </div>
+            <div>
+                <div class="text-text-secondary text-sm mb-1">API Key</div>
+                <div class="font-medium">{% if service.api_key %}●●●●●●●●{% else %}Not set{% endif %}</div>
             </div>
         </div>
         
@@ -114,9 +122,13 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium mb-2">API Type</label>
-                        <input type="text" id="api-type-display" value="{{ service.name }}" disabled class="w-full px-4 py-2 bg-[#334155] border border-[#475569] rounded-lg text-[#f1f5f9] disabled:opacity-75 disabled:cursor-not-allowed">
-                        <input type="hidden" id="api-type" value="{{ service.name|lower }}">
-                        <p class="text-xs text-text-secondary mt-1">Automatically set to match this service</p>
+                        <select id="api-type" class="w-full px-4 py-2 bg-[#1e293b] border border-[#475569] rounded-lg text-[#f1f5f9] focus:outline-none focus:ring-2 focus:ring-primary">
+                            <option value="qbittorrent" {% if suggested_api_type == 'qbittorrent' %}selected{% endif %}>qBittorrent</option>
+                            <option value="sonarr" {% if suggested_api_type == 'sonarr' %}selected{% endif %}>Sonarr</option>
+                            <option value="radarr" {% if suggested_api_type == 'radarr' %}selected{% endif %}>Radarr</option>
+                            <option value="custom" {% if suggested_api_type == 'custom' %}selected{% endif %}>Custom</option>
+                        </select>
+                        <p class="text-xs text-text-secondary mt-1">Choose qBittorrent to enable username/password login.</p>
                     </div>
                     <div>
                         <label class="text-sm font-medium mb-2 flex items-center justify-between">
@@ -128,10 +140,21 @@
                         <input type="url" id="api-url" value="{{ service.api_url|default:service.url }}" placeholder="https://service.local:8080" disabled class="w-full px-4 py-2 bg-[#334155] border border-[#475569] rounded-lg text-[#f1f5f9] placeholder:text-[#cbd5e1] focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-75 disabled:cursor-not-allowed">
                     </div>
                     <div>
+                        <label class="block text-sm font-medium mb-2">Auth Method</label>
+                        <select id="auth-method" onchange="toggleAuthFields()" class="w-full px-4 py-2 bg-[#1e293b] border border-[#475569] rounded-lg text-[#f1f5f9] focus:outline-none focus:ring-2 focus:ring-primary">
+                            <option value="basic" {% if suggested_auth_method == 'basic' %}selected{% endif %}>Username / Password</option>
+                            <option value="api_key" {% if suggested_auth_method == 'api_key' %}selected{% endif %}>API Key</option>
+                        </select>
+                    </div>
+                    <div id="api-key-fields">
+                        <label class="block text-sm font-medium mb-2">API Key</label>
+                        <input type="password" id="api-key" value="{{ service.api_key }}" placeholder="Paste API key" class="w-full px-4 py-2 bg-[#1e293b] border border-[#475569] rounded-lg text-[#f1f5f9] placeholder:text-[#cbd5e1] focus:outline-none focus:ring-2 focus:ring-primary">
+                    </div>
+                    <div id="username-field">
                         <label class="block text-sm font-medium mb-2">Username</label>
                         <input type="text" id="api-username" value="{{ service.api_username }}" placeholder="admin" class="w-full px-4 py-2 bg-[#1e293b] border border-[#475569] rounded-lg text-[#f1f5f9] placeholder:text-[#cbd5e1] focus:outline-none focus:ring-2 focus:ring-primary">
                     </div>
-                    <div>
+                    <div id="password-field">
                         <label class="block text-sm font-medium mb-2">Password</label>
                         <input type="password" id="api-password" value="{{ service.api_password }}" placeholder="••••••••" class="w-full px-4 py-2 bg-[#1e293b] border border-[#475569] rounded-lg text-[#f1f5f9] placeholder:text-[#cbd5e1] focus:outline-none focus:ring-2 focus:ring-primary">
                     </div>
@@ -161,14 +184,20 @@
         </div>
     </div>
     
+    {{ service.id|json_script:"service-id-data" }}
+    {{ service.url|json_script:"service-url-data" }}
+    {{ service.name|json_script:"service-name-data" }}
+    {{ service.api_type|default:""|json_script:"service-api-type-data" }}
     <script>
     // Define service variables globally before any included scripts use them
-    const serviceId = service.id;
-    const serviceUrl = service.url;
-    const serviceName = service.name.toLowerCase();
+    const serviceId = JSON.parse(document.getElementById('service-id-data').textContent);
+    const serviceUrl = JSON.parse(document.getElementById('service-url-data').textContent);
+    const serviceName = JSON.parse(document.getElementById('service-name-data').textContent);
+    const serviceApiType = JSON.parse(document.getElementById('service-api-type-data').textContent);
+    const hasApi = {{ has_api|yesno:"true,false" }};
     console.log('[Service Detail] Variables defined:', {serviceId, serviceUrl, serviceName});
-    console.log('[Service Detail] API Type:', service.api_type);
-    console.log('[Service Detail] Has API:', has_api);
+    console.log('[Service Detail] API Type:', serviceApiType);
+    console.log('[Service Detail] Has API:', hasApi);
     </script>
     
     {% if has_api %}
@@ -276,6 +305,8 @@
                         <select id="api-method" class="w-full px-4 py-2 bg-[#1e293b] border border-[#475569] rounded-lg text-[#f1f5f9] focus:outline-none focus:ring-2 focus:ring-primary [&>option]:bg-[#1e293b] [&>option]:text-[#f1f5f9]">
                             <option value="GET">GET</option>
                             <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="DELETE">DELETE</option>
                         </select>
                     </div>
                     
@@ -352,14 +383,38 @@ function toggleApiUrlEdit() {
     }
 }
 
+function toggleAuthFields() {
+    const authMethod = document.getElementById('auth-method').value;
+    const apiKeyFields = document.getElementById('api-key-fields');
+    const usernameField = document.getElementById('username-field');
+    const passwordField = document.getElementById('password-field');
+
+    const useApiKey = authMethod === 'api_key';
+    apiKeyFields.classList.toggle('hidden', !useApiKey);
+    usernameField.classList.toggle('hidden', useApiKey);
+    passwordField.classList.toggle('hidden', useApiKey);
+}
+
 async function saveCredentials() {
-    const apiType = serviceName;  // Auto-set from service name
+    const apiType = document.getElementById('api-type').value;
     const apiUrl = document.getElementById('api-url').value;
+    const authMethod = document.getElementById('auth-method').value;
     const apiUsername = document.getElementById('api-username').value;
     const apiPassword = document.getElementById('api-password').value;
+    const apiKey = document.getElementById('api-key').value;
     
     if (!apiUrl) {
         alert('Please fill in API URL');
+        return;
+    }
+
+    if (authMethod === 'api_key' && !apiKey.trim()) {
+        alert('Please fill in API key');
+        return;
+    }
+
+    if (authMethod === 'basic' && (!apiUsername.trim() || !apiPassword)) {
+        alert('Please fill in username and password');
         return;
     }
     
@@ -373,8 +428,10 @@ async function saveCredentials() {
             body: JSON.stringify({
                 api_type: apiType,
                 api_url: apiUrl,
+                auth_method: authMethod,
                 api_username: apiUsername,
-                api_password: apiPassword
+                api_password: apiPassword,
+                api_key: apiKey
             })
         });
         
@@ -390,6 +447,8 @@ async function saveCredentials() {
         alert('❌ Error: ' + error.message);
     }
 }
+
+document.addEventListener('DOMContentLoaded', toggleAuthFields);
 
 function getCookie(name) {
     let cookieValue = null;
@@ -511,6 +570,25 @@ async function loadApiDocs() {
                         </div>
                     </div>
             `;
+
+            if (data.documentation && data.documentation.references) {
+                html += `
+                    <div class="bg-bg border border-border rounded-lg p-4">
+                        <h4 class="font-bold mb-4 flex items-center gap-2">
+                            <span class="text-2xl">🔖</span>
+                            References
+                        </h4>
+                        <div class="space-y-3">
+                            ${data.documentation.references.map(ref => `
+                                <div>
+                                    <a href="${ref.url}" target="_blank" rel="noopener noreferrer" class="text-primary hover:text-primary/80 font-medium">${ref.name} →</a>
+                                    <p class="text-sm text-text-secondary mt-1">${ref.description}</p>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
             
             // Check if we have detailed endpoint documentation
             if (data.documentation && data.documentation.endpoints) {
@@ -544,6 +622,11 @@ async function loadApiDocs() {
                                         <h6 class="font-semibold">${endpoint.name}</h6>
                                         <code class="text-xs text-text-secondary break-all">${endpoint.path}</code>
                                     </div>
+                                    <button type="button"
+                                            onclick="useApiEndpoint('${endpoint.method}', '${endpoint.path.replace(/'/g, "\\'")}')"
+                                            class="px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-primary/80 text-xs font-medium">
+                                        Use
+                                    </button>
                                 </div>
                                 <p class="text-sm text-text-secondary">${endpoint.description}</p>
                             </div>
@@ -646,6 +729,17 @@ function updateApiPath() {
     if (action) {
         pathInput.value = action;
     }
+}
+
+function useApiEndpoint(method, path) {
+    document.getElementById('api-path').value = path;
+    document.getElementById('api-method').value = method;
+    document.getElementById('api-action').value = '';
+    if (method === 'GET') {
+        document.getElementById('api-body').value = '';
+    }
+    switchTab('raw-api');
+    document.getElementById('api-path').focus();
 }
 
 async function testRawApi() {

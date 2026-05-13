@@ -172,6 +172,50 @@ class TestGenericAPIClient:
         
         result = client.authenticate()
         assert result is True or mock_post.called
+
+    @patch('requests.Session.post')
+    def test_qbittorrent_auth_uses_form_with_special_character_password(self, mock_post):
+        """Test qBittorrent authentication preserves special characters."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.headers = {'Content-Type': 'text/plain'}
+        mock_response.text = 'Ok.'
+        mock_post.return_value = mock_response
+
+        client = GenericAPIClient(
+            base_url="https://qbittorrent.local",
+            username="admin",
+            password='1qaz"WSX'
+        )
+
+        assert client.authenticate() is True
+        mock_post.assert_called_once_with(
+            'https://qbittorrent.local/api/v2/auth/login',
+            data={'username': 'admin', 'password': '1qaz"WSX'},
+            headers={
+                'User-Agent': 'HomeLab-Dashboard/1.0',
+                'Origin': 'https://qbittorrent.local',
+                'Referer': 'https://qbittorrent.local/',
+            },
+            timeout=5
+        )
+
+    @patch('requests.Session.post')
+    def test_qbittorrent_auth_accepts_204_no_content(self, mock_post):
+        """Test qBittorrent authentication accepts 204 No Content as success."""
+        mock_response = Mock()
+        mock_response.status_code = 204
+        mock_response.headers = {}
+        mock_response.text = ''
+        mock_post.return_value = mock_response
+
+        client = GenericAPIClient(
+            base_url="https://qbittorrent.local",
+            username="admin",
+            password='1qaz"WSX'
+        )
+
+        assert client.authenticate() is True
     
     def test_client_api_key_authentication(self):
         """Test initialization with API key."""
@@ -222,7 +266,7 @@ class TestTraefikService:
     @patch('requests.get')
     def test_fetch_traefik_services_success(self, mock_get):
         """Test fetching services from Traefik."""
-        from dashboard.traefik_service import TraefikService
+        from dashboard.utils.traefik_service import TraefikService
         
         mock_response = Mock()
         mock_response.status_code = 200
