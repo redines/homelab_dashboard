@@ -196,9 +196,10 @@ function updateServiceCards(services) {
     services.forEach(service => {
         const card = document.querySelector(`[data-service-id="${service.id}"]`);
         if (!card) return;
+
         const status = STATUS_STYLES[service.status] ? service.status : 'unknown';
         const styles = STATUS_STYLES[status];
-        
+
         // Update status badge
         const statusBadge = card.querySelector('[data-status-badge]');
         if (statusBadge) {
@@ -209,17 +210,16 @@ function updateServiceCards(services) {
                 statusDot.className = `w-1.5 h-1.5 rounded-full ${styles.dot}`;
             }
 
-            const statusText = document.createTextNode(status.toUpperCase());
             Array.from(statusBadge.childNodes).forEach(node => {
                 if (node.nodeType === Node.TEXT_NODE) node.remove();
             });
-            statusBadge.appendChild(statusText);
+            statusBadge.appendChild(document.createTextNode(status.toUpperCase()));
         }
-        
+
         // Update row border color
         card.classList.remove('border-l-success', 'border-l-danger', 'border-l-warning');
         card.classList.add(styles.row);
-        
+
         // Update response time if available
         const responseTimeEl = card.querySelector('[data-response-time]');
         if (responseTimeEl) {

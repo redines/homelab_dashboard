@@ -95,7 +95,16 @@ class Service(models.Model):
             """
             Determine if service is up based on status code.
             Many services return 3xx, 401, or 403 when up but requiring auth/redirect.
+
+            IMPORTANT: 502, 503, 504 are always treated as DOWN.
+            Traefik returns these when the backend container/service is unreachable,
+            even if Traefik's own middleware (auth, redirect) is still active.
+            Trusting 3xx/401/403 alone causes services to appear "up" when only
+            Traefik is responding and the actual backend is down.
             """
+            # Gateway/upstream errors — Traefik backend is unreachable
+            if status_code in (502, 503, 504):
+                return False
             # 2xx - Success
             if 200 <= status_code < 300:
                 return True
@@ -131,8 +140,16 @@ class Service(models.Model):
             self.response_time = int((end_time - start_time).total_seconds() * 1000)
             
             if is_service_up(response.status_code):
-                self.status = 'up'
-                logger.info(f"✓ {self.name}: UP (status={response.status_code}, time={self.response_time}ms)")
+                # Extra check: if redirect chain ended at a 502/503/504 after
+                # passing through Traefik auth/redirect middleware, it's still down.
+                # (Covered by is_service_up, but also check history for any 5xx gateways)
+                gateway_errors = {502, 503, 504}
+                if any(r.status_code in gateway_errors for r in response.history):
+                    self.status = 'down'
+                    logger.warning(f"✗ {self.name}: DOWN (redirect chain passed through gateway error)")
+                else:
+                    self.status = 'up'
+                    logger.info(f"✓ {self.name}: UP (status={response.status_code}, time={self.response_time}ms)")
             else:
                 self.status = 'down'
                 logger.warning(f"✗ {self.name}: DOWN (status={response.status_code})")
@@ -154,8 +171,13 @@ class Service(models.Model):
                 self.response_time = int((end_time - start_time).total_seconds() * 1000)
                 
                 if is_service_up(response.status_code):
-                    self.status = 'up'
-                    logger.info(f"✓ {self.name}: UP (no SSL verify, status={response.status_code}, time={self.response_time}ms)")
+                    gateway_errors = {502, 503, 504}
+                    if any(r.status_code in gateway_errors for r in response.history):
+                        self.status = 'down'
+                        logger.warning(f"✗ {self.name}: DOWN (redirect chain passed through gateway error, no SSL verify)")
+                    else:
+                        self.status = 'up'
+                        logger.info(f"✓ {self.name}: UP (no SSL verify, status={response.status_code}, time={self.response_time}ms)")
                 else:
                     self.status = 'down'
                     logger.warning(f"✗ {self.name}: DOWN (status={response.status_code})")
@@ -190,10 +212,16 @@ class Service(models.Model):
                     self.response_time = int((end_time - start_time).total_seconds() * 1000)
                     
                     if is_service_up(response.status_code):
-                        self.status = 'up'
-                        self.url = http_url  # Update to HTTP
-                        logger.info(f"✓ {self.name}: UP via HTTP fallback (status={response.status_code}, time={self.response_time}ms)")
-                        logger.info(f"📝 Updated {self.name} URL from HTTPS to HTTP")
+                        gateway_errors = {502, 503, 504}
+                        if any(r.status_code in gateway_errors for r in response.history):
+                            self.status = 'down'
+                            self.response_time = None
+                            logger.warning(f"✗ {self.name}: DOWN (redirect chain passed through gateway error, HTTP fallback)")
+                        else:
+                            self.status = 'up'
+                            self.url = http_url  # Update to HTTP
+                            logger.info(f"✓ {self.name}: UP via HTTP fallback (status={response.status_code}, time={self.response_time}ms)")
+                            logger.info(f"📝 Updated {self.name} URL from HTTPS to HTTP")
                     else:
                         self.status = 'down'
                         self.response_time = None

@@ -54,7 +54,7 @@
   // ---------------------------------------------------------------------------
 
   function init() {
-    // Find all qB stats placeholders and fetch stats for each
+    // Stagger qB requests slightly so multiple rows do not all hit the API at once.
     setTimeout(function () {
       document.querySelectorAll('[id^="qb-stats-"]').forEach(function (el, index) {
         const serviceId = el.id.replace('qb-stats-', '');
